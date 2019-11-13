@@ -7,7 +7,7 @@
 typedef uint_fast32_t UINT32;
 
 static const UINT32 DEFAULT_INITAL_CHECKSUM = 0xFFFFFFFF;
-static const int BUFFER_SIZE = 4096;
+static const int BUFFER_SIZE = 8;
 
 /** Memoize the result of calculation performed on each byte */
 static const UINT32 CRC32_TABLE[] = {
@@ -78,14 +78,28 @@ static const UINT32 CRC32_TABLE[] = {
 };
 
 
-UINT32 crc32_checksum(unsigned char *data, size_t data_len, UINT32 inital_checksum) {
+/**
+ * Calculate the running checksum of a byte array
+ * by starting with the given initial_checksum instead of 0xFFFFFFFF
+ * This is used as a helper for computing the checksum of a large file,
+ * by reading the file in chunk, then compute the running checksum of
+ * the chunks so far.
+ *
+ * @param  data             Byte array whose checksum need to be computed
+ * @param  data_len         Length of the byte array
+ * @param  initial_checksum The running checksum of the previous data
+ * @return The running checksum of all previous data and the current data
+ *         xor by 0xFFFFFFFF
+ */
+UINT32 crc32_running_checksum(unsigned char *data, size_t data_len, UINT32 inital_checksum) {
     UINT32 checksum = inital_checksum;
     int i;
     for (i = 0; i < data_len; i++) {
         int lookup_ind = (checksum ^ data[i]) & 0xFF;
+        UINT32 prev = checksum;
         checksum = (checksum >> 8) ^ CRC32_TABLE[lookup_ind];
+        printf("%x --> %x\n", prev, checksum);
     }
-    checksum ^= 0xFFFFFFFF;
     return checksum;
 }
 
@@ -101,10 +115,11 @@ UINT32 crc32_file_checksum(FILE *fd) {
     // find the running checksum
     size_t bytes_read = 0;
     while((bytes_read = fread(buffer, 1, BUFFER_SIZE, fd)) > 0) {
-        checksum = crc32_checksum(buffer, bytes_read, checksum);
+        checksum = crc32_running_checksum(buffer, bytes_read, checksum);
+        printf("Checksum: %x\n", checksum);
     }
 
+    // the final running checksum is negated, according to CRC-32 specification
+    checksum ^= 0xFFFFFFFF;
     return checksum;
 }
-
-

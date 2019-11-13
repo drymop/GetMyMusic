@@ -1,2 +1,6 @@
 *.gch
 *.o
+*.out
+
+# Mac stuff
+.DS_Store
