@@ -99,7 +99,7 @@ void parse_arguments(int argc, char* argv[], char** server, char** port) {
             "Usage:\n ./client [-h <server>] [-p <port>]";
     
     // there must be an odd number of arguments (program name and flag-value pairs)
-    if (argc > 3) {
+    if (argc % 2 == 0 || argc > 5) {
         die_with_error(USAGE_MESSAGE, NULL);
     }
 
