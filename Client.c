@@ -3,7 +3,7 @@
  */
 
 #include "NetworkHeader.h"
-#include "Protocol.c"
+#include "Protocol.h"
 
 /**
  * Print out the error, then exit the program

@@ -3,9 +3,8 @@
  */
 
 #include "NetworkHeader.h"
+#include "ClientHandler.h"
 
-
-static const int MAX_CONNECTIONS = 16;
 
 /**
  * Print out the error, then exit the program

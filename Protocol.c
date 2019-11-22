@@ -3,50 +3,10 @@
 #include <arpa/inet.h>  /* htons, ntohs */
 #include <stdio.h>      /* file IO */
 #include <string.h>     /* memcpy */
-#include <stdint.h>     /* integer of fixed size */
+#include <sys/types.h>
 
 
-/** Protocol version */
-static const uint8_t VERSION = 0x1;
 
-/* 
- * Packet types 
- */
-
-/** Create a new account */
-static const uint8_t TYPE_SIGNUP   = 1;
-
-/** Login to account */
-static const uint8_t TYPE_LOGON    = 2;
-
-/** Close the connection to server */
-static const uint8_t TYPE_LEAVE    = 3;
-
-/** Request list of files stored in server */
-static const uint8_t TYPE_LIST     = 4;
-
-/** Upload file to server */
-static const uint8_t TYPE_UPLOAD   = 5;
-
-/** Request to download file from server */
-static const uint8_t TYPE_DOWNLOAD = 6;
-
-
-/**
- * Common packet header
- */
-struct PacketHeader {
-    /** Protocol version */
-    uint8_t  version;
-    /** Request type */
-    uint8_t  type;
-    /** Token specific to an user and a session */
-    uint16_t packet_len;
-    /** Token specific to an user and a session */
-    uint32_t token;
-};
-
-static const size_t HEADER_LEN = sizeof(struct PacketHeader);
 
 
 /**
