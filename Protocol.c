@@ -3,7 +3,6 @@
 #include <arpa/inet.h>  /* htons, ntohs */
 #include <stdio.h>      /* file IO */
 #include <string.h>     /* memcpy */
-#include <sys/types.h>
 
 
 
