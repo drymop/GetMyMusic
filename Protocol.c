@@ -58,7 +58,7 @@ void make_header(uint8_t* buffer, uint8_t type, uint16_t packet_len, uint32_t to
     header->type = type;
     // muti-byte values must be in network endian (big-endian)
     header->packet_len = htons(packet_len);
-    header->token = htons(token);
+    header->token = htonl(token);
 }
 
 
