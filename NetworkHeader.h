@@ -3,7 +3,7 @@
 #include <arpa/inet.h>  /* for sockaddr_in and inet_ntoa() */
 #include <stdlib.h>     /* for atoi() */
 #include <string.h>     /* for memset() */
-#include <unistd.h>     /* for close() */
+#include <unistd.h>     /* for unix stuff */
 #include <netdb.h>
 
 #define SERVER_HOST "mathcs01"  /* default host */
@@ -12,5 +12,3 @@
 #define SA struct sockaddr
 
 #define	BUFFSIZE	8192	/* buffer size for reads and writes */
-
-static const int VERSION = 0x1;

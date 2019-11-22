@@ -1,14 +1,9 @@
 /**
- * Run a client that send a query to a Who server, and print out
- * the list of users/login times received from the server.
+ * GetMyMusic client's main program
  */
 
-#include <errno.h>
-#include <signal.h>
-#include <time.h>
-
 #include "NetworkHeader.h"
-
+#include "Protocol.c"
 
 /**
  * Print out the error, then exit the program
@@ -35,33 +30,25 @@ void parse_arguments(int argc, char* argv[], char** server, char** port);
 
 
 /**
- * Create a socket talking to the server at specified port
+ * Create a TCP socket connecting to the server at specified port
  * If an error happens, log error message and exit the program.
  * Return the socket file descriptor
- * Server address info is returned through output parameter server_addr
- * This method dynamically allocate memory for server_addr, 
- * so when finish using  server_addr, freeaddrinfo(server_addr) needs 
- * to be called to free up the allocated memory.
  *
  * @param server      Server IP or server hostname
- * @param server_port Server port number (as string)
- * @param server_addr [out] Address of the variable to store the server's address info
+ * @param server_port Server port number (as a string)
  */
-int create_socket(const char* server, const char* server_port, struct addrinfo** server_addr);
+int create_socket(const char* server, const char* server_port);
 
 
 /**
- * Connect to the Who server specified in the command line argument.
- * Query the hostname (specified in command line argument) to the server.
- * Wait until receiving a list of users from the server, the print out the users.
- * If timeout, resend the query until max number of retries is exceeded.
+ * For now, the client simply prompt for login info, then send it to server
+ * TODO: LOTS to implement
  */
 int main (int argc, char *argv[]) {
 
     /*
      * Parse arguments supplied to main program
      */
-
     char* server = SERVER_HOST; // init with default value
     char* port = SERVER_PORT;   // init with default value
     parse_arguments(argc, argv, &server, &port);
@@ -70,79 +57,25 @@ int main (int argc, char *argv[]) {
     /*
      * Initialize socket and IO buffer
      */
-
-    // struct addrinfo *server_addr;  // hold info of the server address
-    // int server_socket = create_socket(server, port, &server_addr);
-
-    /*
-     * Repeatedly: (until the max number of retries is reached)
-     * - Send query to server
-     * - Try to receive response from server until succeeded, or timeout
-     */
-
-    // start with a random query ID
-    srand(time(0));  // set random seed
-    unsigned short query_id = rand();
-
-    struct sockaddr_storage from_addr;  // will store address of sender
-    socklen_t from_addr_len = sizeof(from_addr);
-
-    int success = 0;  // flag to indicate whether a valid response has been received 
-
-    // repeatedly sending query to server until receiving a valid response 
-    // (or exceeding number of retries)
-    int n_retries;
-    for (n_retries = 0; n_retries <= max_retries; n_retries++) {
-
-        // send query to server
-        send_who_request(server_socket, server_addr, buffer, buffer_len, query_id, hostname);
-        interrupted = 0;  // timeout alarm has not gone off yet
-        alarm(timeout);   // set timeout alarm to go off after specified timeout amount
-
-        // try to receive response until succeeded, or time out
-        while (1) {
-            // try to receive response
-            int packet_len = recvfrom(
-                    server_socket, buffer, buffer_len, 0, 
-                    (struct sockaddr*) &from_addr, &from_addr_len);
-
-            // If received some response and handled response successfully
-            // then exit the loop
-            if (packet_len >= 0 
-                    && handle_who_response(buffer, packet_len, query_id) == 0) {
-                alarm(0);     // cancel alarm
-                success = 1;  // specify that a valid response is received
-                break;        // stop waiting for more repsonses
-            }
-
-            // If get to here: invalid packet, or alarm goes off during recvfrom()
-            
-            // Check to see if alarm went off (timeout), if so stop listening for response
-            if (interrupted) {
-                query_id += 1;  // use a different query ID when retrying
-                printf("Timed out, %d retries remaining ...\n", max_retries - n_retries);
-                break;          // stop waiting for more response
-            }
-        }
-
-        // already received a valid response, no need to resend query
-        if (success) {
-            break;
-        }
-    }
-
-    if (!success) {
-        die_with_error("No response from server.", "Max number of retries exceeded");
-    }
+    int server_socket = create_socket(server, port);
+    unsigned char packet[BUFFSIZE];
 
     /*
-     * Release resource and exit
+     * Logon/sign-up
      */
+    // Prompt for username and password
+    char username[128];
+    printf("Enter username:\n");
+    scanf("%s", username);
+    char* password = getpass("Enter password:\n");
+    printf("%s\n", username);
+    printf("%s\n", password);
+    // Create logon packet
+    ssize_t packet_len = make_logon_packet(packet, BUFFSIZE, 1, username, password);
+    ssize_t sent_bytes = send(server_socket, packet, packet_len, 0);
 
-    // free dynamically allocated memory from create_socket()
-    freeaddrinfo(server_addr);
-    
-    // exit
+    // Release resource and exit
+    close(server_socket);
     return 0;
 }
 
@@ -155,7 +88,7 @@ int main (int argc, char *argv[]) {
 void die_with_error(const char* message, const char* detail) {
     printf("Error: %s\n", message);
     if (detail != NULL) { 
-        printf("Detail: %s\n", detail);
+        printf("       %s\n", detail);
     }
     exit(1);
 }
@@ -198,33 +131,56 @@ void parse_arguments(int argc, char* argv[], char** server, char** port) {
 }
 
 
-int create_socket(const char* server, const char* server_port, struct addrinfo** server_addr) {
+int create_socket(const char* server, const char* server_port) {
     /*
      * define criteria for address info
      */
     struct addrinfo addr_criteria;                    // struct storing the address info
     memset(&addr_criteria, 0, sizeof(addr_criteria)); // zero out the struct
     addr_criteria.ai_family = AF_UNSPEC;              // any address family
-    addr_criteria.ai_socktype = SOCK_DGRAM;           // only accept datagram socket
-    addr_criteria.ai_protocol = IPPROTO_UDP;          // only use UDP protocol      
+    addr_criteria.ai_socktype = SOCK_STREAM;          // only accept stream socket
+    addr_criteria.ai_protocol = IPPROTO_TCP;          // only use TCP protocol      
 
     /* 
      * get a list of address infos that fit the criteria
      */
-    int err_code = getaddrinfo(server, server_port, &addr_criteria, server_addr);
+    struct addrinfo* server_addr; // the start of a linked list of possible addresses
+    int err_code = getaddrinfo(server, server_port, &addr_criteria, &server_addr);
     if (err_code != 0) {
-        die_with_error("getaddrinfo() failed", gai_strerror(err_code));
+        die_with_error("Cannot get server's address info - getaddrinfo() failed", gai_strerror(err_code));
     }
 
     /*
-     * create UDP socket
+     * try all addresses in the list of address infos
+     * until successful connection is established
      */
-    int server_socket = socket((*server_addr)->ai_family, 
-                                                         (*server_addr)->ai_socktype, 
-                                                         (*server_addr)->ai_protocol);
-    if (server_socket < 0) {
-        die_with_error("socket() failed", NULL);
+    int server_socket = -1;
+    struct addrinfo* addr;
+    for (addr = server_addr; addr != NULL; addr = addr->ai_next) {
+        // create socket from address info
+        server_socket = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+        if (server_socket < 0) {
+            continue; // fail to create socket, try other addresses
+        }
+        // initiate connection to server
+        if (connect(server_socket, addr->ai_addr, addr->ai_addrlen) == 0) {
+          break; // successfully connect to a socket
+        }
+        // fail to connect, close all resources and try other addresses
+        close(server_socket);
+        server_socket = -1;
     }
+
+    /*
+     * Clean up and return
+     */
+    // free the dynamically allocated list of address infos
+    freeaddrinfo(server_addr);
+    // die if cannot successfully connect with server
+    if (server_socket < 0) {
+        die_with_error("Failed to connect to server", "connect() failed");
+    }
+
     return server_socket;
 }
 
