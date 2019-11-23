@@ -5,3 +5,6 @@
 
 # Mac stuff
 .DS_Store
+
+# data folder
+data/*

@@ -2,8 +2,11 @@
  * GetMyMusic client's main program
  */
 
+#include <stdbool.h>
+
 #include "NetworkHeader.h"
 #include "Protocol.h"
+
 
 /**
  * Print out the error, then exit the program
@@ -59,20 +62,35 @@ int main (int argc, char *argv[]) {
      */
     int server_socket = create_socket(server, port);
     char packet[BUFFSIZE];
+    char input[BUFFSIZE];
 
     /*
      * Logon/sign-up
      */
     // Prompt for username and password
+    bool is_new_user = true;
+    while (true) {
+        printf("\nLogon or signup?\n1. Logo n\n2. Sign up\n");
+        fgets(input, BUFFSIZE, stdin);
+        int choice = atoi(input);
+        if (choice == 1) {
+            is_new_user = false;
+            break;
+        } else if (choice == 2) {
+            is_new_user = true;
+            break;
+        }
+    }
     char username[128];
     printf("Enter username:\n");
     scanf("%s", username);
     char* password = getpass("Enter password:\n");
     printf("%s\n", username);
     printf("%s\n", password);
+
     // Create logon request
-    ssize_t packet_len = make_logon_packet(packet, BUFFSIZE, 1, username, password);
-    ssize_t sent_bytes = send(server_socket, packet, packet_len, 0);
+    ssize_t packet_len = make_logon_request(packet, BUFFSIZE, is_new_user, username, password);
+    send(server_socket, packet, packet_len, 0);
 
     // Receive a session token
     packet_len = receive_packet(server_socket, packet, BUFFSIZE);
@@ -81,8 +99,12 @@ int main (int argc, char *argv[]) {
     }
 
     struct PacketHeader* header = (struct PacketHeader*) packet;
-    uint32_t session_token = ntohl(header->session_token);
+    uint32_t session_token = header->session_token;
     printf("Token is %u\n", session_token);
+
+    // Request to leave
+    packet_len = make_leave_request(packet, BUFFSIZE, session_token);
+    send(server_socket, packet, packet_len, 0);
 
     // Release resource and exit
     close(server_socket);

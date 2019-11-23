@@ -5,6 +5,15 @@
 #include <string.h>     /* memcpy */
 
 
+/**
+ * Read from TCP connection until the number of bytes read is at least the target specified
+ * @param  socket      TCP Socket to read from
+ * @param  buffer      Buffer to read into
+ * @param  buff_len    Maximum length of the buffer
+ * @param  n_received  Number of bytes already received before this call
+ * @param  target_len  The least number of bytes to be received in total
+ * @return Number of bytes read in total, or -1 if error
+ */
 ssize_t receive_packet_until(int socket, char* buffer, size_t buff_len, int n_received, int target_len) {
     while(n_received < target_len) {
         int n_new_bytes = recv(socket, buffer + n_received, 
@@ -56,9 +65,8 @@ void make_header(char* buffer, enum PacketType type, uint16_t packet_len, uint32
     struct PacketHeader* header = (struct PacketHeader*) buffer;
     header->version = VERSION;
     header->type = type;
-    // muti-byte values must be in network endian (big-endian)
     header->packet_len = htons(packet_len);
-    header->session_token = htonl(token);
+    header->session_token = token;
 }
 
 
@@ -76,7 +84,7 @@ ssize_t make_header_only_packet(char* buffer, size_t buff_len, enum PacketType t
  * Make the logon packet containing user name and password
  * Return length of packet, or -1 if fail
  */
-ssize_t make_logon_packet(char* buffer, 
+ssize_t make_logon_request(char* buffer, 
                      size_t buff_len, 
                      bool is_new_account,
                      const char* username, 
@@ -110,11 +118,7 @@ ssize_t make_logon_packet(char* buffer,
 }
 
 
-/**
- * Make the packet indicating client is leaving the server
- * Return length of packet, or -1 if fail
- */
-ssize_t make_leave_packet(char* buffer, size_t buff_len, uint32_t token) {
+ssize_t make_leave_request(char* buffer, size_t buff_len, uint32_t token) {
     return make_header_only_packet(buffer, buff_len, TYPE_LEAVE, token);
 }
 

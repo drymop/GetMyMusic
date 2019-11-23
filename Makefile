@@ -12,8 +12,8 @@ all: server client
 
 # build only the server
 server: $(SERVER)
-$(SERVER): Server.c ClientHandler.o Protocol.o NetworkHeader.h
-	$(CC) $(CFLAGS) Server.c ClientHandler.o Protocol.o -o $@
+$(SERVER): Server.c AuthenticationService.o ClientHandler.o Protocol.o NetworkHeader.h
+	$(CC) $(CFLAGS) Server.c AuthenticationService.o ClientHandler.o Protocol.o -o $@
 
 # build only the client
 client: $(CLIENT)

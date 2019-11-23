@@ -52,11 +52,18 @@ ssize_t receive_packet(int socket ,char* buffer, size_t buff_len);
  * Make the logon packet containing user name and password
  * Return length of packet, or -1 if fail
  */
-ssize_t make_logon_packet(char* buffer, 
+ssize_t make_logon_request(char* buffer, 
                      	  size_t buff_len, 
                           bool is_new_account,
                      	  const char* username, 
                      	  const char* password);
+
+
+/**
+ * Make the packet indicating client is leaving the server
+ * @return Length of packet, or -1 if error
+ */
+ssize_t make_leave_request(char* buffer, size_t buff_len, uint32_t token);
 
 
 ssize_t make_token_response(char* buffer, size_t buff_len, uint32_t token);

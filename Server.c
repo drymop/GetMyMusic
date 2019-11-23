@@ -2,6 +2,8 @@
  * Run a server
  */
 
+#include <time.h>  // for setting random seed
+
 #include "NetworkHeader.h"
 #include "ClientHandler.h"
 
@@ -55,6 +57,8 @@ int main(int argc, char *argv[])
 	/*
 	 * Initialize
 	 */
+	// set seed for random calls in other services
+	srand(time(0));
 	int i;
 	int server_socket = create_socket(server_port);
 
