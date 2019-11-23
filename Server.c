@@ -40,7 +40,7 @@ int create_socket(int server_port);
 /**
  * Create connection with a new client, update all book-keeping data
  */
-void accept_client(int server_socket, int* client_sockets);
+void accept_client(int server_socket, struct ClientInfo* client_infos);
 
 
 int main(int argc, char *argv[])
@@ -58,14 +58,12 @@ int main(int argc, char *argv[])
 	int i;
 	int server_socket = create_socket(server_port);
 
-	// list of currently connected client sockets
-	int client_sockets[MAX_CONNECTIONS];
-	for (i = 0; i < MAX_CONNECTIONS; i++) {
-		client_sockets[i] = 0;
-	}
- 
  	// keep track of which sockets has incoming data
 	fd_set activated_sockets;
+
+	// initial infos about connected clients
+	struct ClientInfo client_infos[MAX_CONNECTIONS];
+	memset(client_infos, 0, MAX_CONNECTIONS * sizeof(struct ClientInfo));
 
 	/*
 	 * Do all the work here
@@ -84,12 +82,12 @@ int main(int argc, char *argv[])
 		// add all client sockets to set
 		for (i = 0; i < MAX_CONNECTIONS; i++) {
 			// check for val
-			int client = client_sockets[i];
-			if (client > 0) {
-				FD_SET(client, &activated_sockets);   
+			int client_socket = client_infos[i].client_socket;
+			if (client_socket > 0) {
+				FD_SET(client_socket, &activated_sockets);   
             }
-            if(client > max_descriptor) {
-                max_descriptor = client;
+            if(client_socket > max_descriptor) {
+                max_descriptor = client_socket;
             }
 		}
 
@@ -106,19 +104,16 @@ int main(int argc, char *argv[])
 		 */
 		// connection from new client
 		if (FD_ISSET(server_socket, &activated_sockets)) {
-			accept_client(server_socket, client_sockets);
+			accept_client(server_socket, client_infos);
 		}
 		// request from connected clients
 		for (i = 0; i < MAX_CONNECTIONS; i++) {
-			if (FD_ISSET(client_sockets[i], &activated_sockets)) {
-				// TODO handle clients here
+			if (FD_ISSET(client_infos[i].client_socket, &activated_sockets)) {
+				printf("Handling client %d\n", i);				
+				handle_client(&client_infos[i]);
 			}
 		}
 	}
-
-
-
-
 
 	// not reached
 	close(server_socket);
@@ -209,7 +204,7 @@ int create_socket(int server_port) {
 }
 
 
-void accept_client(int server_socket, int* client_sockets) {
+void accept_client(int server_socket, struct ClientInfo* client_infos) {
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_len = sizeof(client_addr);
 	int client_socket = accept(server_socket, (struct sockaddr*) &client_addr, &client_addr_len);
@@ -219,11 +214,17 @@ void accept_client(int server_socket, int* client_sockets) {
 		printf("Error when accepting new client: %s\n", error_detail);
 		return;
 	}
+	// find an empty array slot to store client info
 	int i;
 	for (i = 0; i < MAX_CONNECTIONS; i++) {
-		// empty slot for client
-		if (client_sockets[i] <= 0) {
-			client_sockets[i] = client_socket;	
+		if (client_infos[i].client_socket <= 0) {
+			client_infos[i].client_socket = client_socket;	
+			printf("Accepted new client at %d\n", i);
+			return;
 		}
 	}
+	// if get to here, max number of clients has been reached
+	// so we reject this new client
+	printf("Reject client\n");
+	close(client_socket);
 }

@@ -19,24 +19,15 @@ static const uint8_t VERSION = 0x1;
  * Packet types 
  */
 
-/** Create a new account */
-static const uint8_t TYPE_SIGNUP   = 1;
-
-/** Login to account */
-static const uint8_t TYPE_LOGON    = 2;
-
-/** Close the connection to server */
-static const uint8_t TYPE_LEAVE    = 3;
-
-/** Request list of files stored in server */
-static const uint8_t TYPE_LIST     = 4;
-
-/** Upload file to server */
-static const uint8_t TYPE_UPLOAD   = 5;
-
-/** Request to download file from server */
-static const uint8_t TYPE_DOWNLOAD = 6;
-
+enum PacketType {
+    TYPE_SIGNUP   = 1,
+    TYPE_LOGON,
+    TYPE_LEAVE,
+    TYPE_LIST,
+    TYPE_UPLOAD,
+    TYPE_DOWNLOAD,
+    TYPE_TOKEN
+};
 
 /**
  * Common packet header
@@ -49,21 +40,27 @@ struct PacketHeader {
     /** Token specific to an user and a session */
     uint16_t packet_len;
     /** Token specific to an user and a session */
-    uint32_t token;
+    uint32_t session_token;
 };
 
 static const size_t HEADER_LEN = sizeof(struct PacketHeader);
 
 
+ssize_t receive_packet(int socket ,char* buffer, size_t buff_len);
+
 /**
  * Make the logon packet containing user name and password
  * Return length of packet, or -1 if fail
  */
-ssize_t make_logon_packet(uint8_t* buffer, 
+ssize_t make_logon_packet(char* buffer, 
                      	  size_t buff_len, 
                           bool is_new_account,
                      	  const char* username, 
                      	  const char* password);
+
+
+ssize_t make_token_response(char* buffer, size_t buff_len, uint32_t token);
+
 
 
 #endif // PROTOCOL_H_

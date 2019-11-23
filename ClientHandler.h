@@ -8,16 +8,24 @@
 
 #include <stdint.h>
 
-static const int USERNAME_LEN = 128;
-static const int MAX_CONNECTIONS = 16;
+#define USERNAME_LEN 128
+#define USERNAME_LEN_WITH_NULL 129
+#define MAX_CONNECTIONS 16
 
+
+/**
+ * Contains the session info of a currently connected client
+ */
 struct ClientInfo {
 	int client_socket;
-	char username[USERNAME_LEN + 1];
+	char username[USERNAME_LEN_WITH_NULL];
 	uint32_t session_token;
 };
 
 
-
+/**
+ * Handle a client request, and update the client info if needed
+ */
+void handle_client(struct ClientInfo* client_info);
 
 #endif // CLIENT_HANDLER_H_

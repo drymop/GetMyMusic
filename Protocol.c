@@ -5,23 +5,64 @@
 #include <string.h>     /* memcpy */
 
 
+ssize_t receive_packet_until(int socket, char* buffer, size_t buff_len, int n_received, int target_len) {
+    while(n_received < target_len) {
+        int n_new_bytes = recv(socket, buffer + n_received, 
+                               buff_len - n_received, 0);
+        if (n_new_bytes <= 0) {
+            // fail to recv
+            return -1;
+        }
+        n_received += n_new_bytes;
+    }
+    return n_received;
+}
 
+
+ssize_t receive_packet(int socket ,char* buffer, size_t buff_len) {
+    int n_received = 0;
+    // since TCP doesn't have message boundary, we have to make sure that
+    // the packet is received fully. In order to do this, we first read 
+    // the full packet header, which contains the packet length, then
+    // use that length as stopping condition for the rest of the loop.
+
+    // receive the header, and find the packet length
+    n_received = receive_packet_until(socket, buffer, buff_len, 0, HEADER_LEN);
+    if (n_received <= 0) {
+        // failed to receive data
+        return -1;
+    }
+    struct PacketHeader* header = (struct PacketHeader*)buffer;
+    int packet_len = ntohs(header->packet_len);
+
+    // receive the rest of the packet
+    n_received = receive_packet_until(socket, buffer, buff_len, n_received, packet_len);
+    // wrong packet length
+    if (n_received != packet_len) {
+        return -1;
+    }
+
+    // to be safe agains ill-formed reqiest
+    // end the packet with a null terminator for string processing
+    buffer[packet_len] = 0;
+    return packet_len;
+}
 
 
 /**
  * Helper function to write packet header 
  */
-void make_header(uint8_t* buffer, uint8_t type, uint16_t packet_len, uint32_t token) {
+void make_header(char* buffer, enum PacketType type, uint16_t packet_len, uint32_t token) {
     struct PacketHeader* header = (struct PacketHeader*) buffer;
     header->version = VERSION;
     header->type = type;
     // muti-byte values must be in network endian (big-endian)
     header->packet_len = htons(packet_len);
-    header->token = htonl(token);
+    header->session_token = htonl(token);
 }
 
 
-ssize_t make_header_only_packet(uint8_t* buffer, size_t buff_len, uint8_t type, uint16_t token) {
+ssize_t make_header_only_packet(char* buffer, size_t buff_len, enum PacketType type, uint32_t token) {
     /* make sure buffer has enough length */
     if (buff_len < HEADER_LEN) {
         return -1;
@@ -35,7 +76,7 @@ ssize_t make_header_only_packet(uint8_t* buffer, size_t buff_len, uint8_t type, 
  * Make the logon packet containing user name and password
  * Return length of packet, or -1 if fail
  */
-ssize_t make_logon_packet(uint8_t* buffer, 
+ssize_t make_logon_packet(char* buffer, 
                      size_t buff_len, 
                      bool is_new_account,
                      const char* username, 
@@ -53,7 +94,7 @@ ssize_t make_logon_packet(uint8_t* buffer,
 
     /* write header */
 
-    uint8_t type = is_new_account? TYPE_SIGNUP : TYPE_LOGON;
+    enum PacketType type = is_new_account? TYPE_SIGNUP : TYPE_LOGON;
     make_header(buffer, type, packet_len, 0);
 
     /* write data */
@@ -73,7 +114,7 @@ ssize_t make_logon_packet(uint8_t* buffer,
  * Make the packet indicating client is leaving the server
  * Return length of packet, or -1 if fail
  */
-ssize_t make_leave_packet(uint8_t* buffer, size_t buff_len, uint16_t token) {
+ssize_t make_leave_packet(char* buffer, size_t buff_len, uint32_t token) {
     return make_header_only_packet(buffer, buff_len, TYPE_LEAVE, token);
 }
 
@@ -82,13 +123,13 @@ ssize_t make_leave_packet(uint8_t* buffer, size_t buff_len, uint16_t token) {
  * Make the packet indicating client is leaving the server
  * Return length of packet, or -1 if fail
  */
-ssize_t make_list_packet(uint8_t* buffer, size_t buff_len, uint16_t token) {
+ssize_t make_list_packet(char* buffer, size_t buff_len, uint32_t token) {
     return make_header_only_packet(buffer, buff_len, TYPE_LIST, token);
 }
 
 
 ssize_t make_download_packet(
-        uint8_t* buffer, size_t buff_len, uint16_t token, const char* file_name) {
+        char* buffer, size_t buff_len, uint32_t token, const char* file_name) {
     size_t file_name_len = strlen(file_name) + 1;  // include null terminator
     size_t packet_len = HEADER_LEN + file_name_len;
 
@@ -104,6 +145,9 @@ ssize_t make_download_packet(
 }
 
 
+ssize_t make_token_response(char* buffer, size_t buff_len, uint32_t token) {
+    return make_header_only_packet(buffer, buff_len, TYPE_TOKEN, token);
+}
 
 
 

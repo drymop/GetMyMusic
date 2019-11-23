@@ -58,7 +58,7 @@ int main (int argc, char *argv[]) {
      * Initialize socket and IO buffer
      */
     int server_socket = create_socket(server, port);
-    unsigned char packet[BUFFSIZE];
+    char packet[BUFFSIZE];
 
     /*
      * Logon/sign-up
@@ -70,9 +70,19 @@ int main (int argc, char *argv[]) {
     char* password = getpass("Enter password:\n");
     printf("%s\n", username);
     printf("%s\n", password);
-    // Create logon packet
+    // Create logon request
     ssize_t packet_len = make_logon_packet(packet, BUFFSIZE, 1, username, password);
     ssize_t sent_bytes = send(server_socket, packet, packet_len, 0);
+
+    // Receive a session token
+    packet_len = receive_packet(server_socket, packet, BUFFSIZE);
+    if (packet_len <= 0) {
+        printf("Error when receiving repsonse\n");
+    }
+
+    struct PacketHeader* header = (struct PacketHeader*) packet;
+    uint32_t session_token = ntohl(header->session_token);
+    printf("Token is %u\n", session_token);
 
     // Release resource and exit
     close(server_socket);
