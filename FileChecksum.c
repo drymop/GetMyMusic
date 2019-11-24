@@ -1,4 +1,4 @@
-#include "file_checksum.h"
+#include "FileChecksum.h"
 
 #include <stdlib.h>
 #include <stdint.h>  /* integer types of exact size */

@@ -3,6 +3,8 @@ CFLAGS = -Wall
 SERVER = server.out
 CLIENT = client.out
 
+SERVER_OBJS = AuthenticationService.o ClientHandler.o FileChecksum.o Protocol.o StorageService.o
+
 # compile object file from corresponding .c and .h file
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -12,8 +14,8 @@ all: server client
 
 # build only the server
 server: $(SERVER)
-$(SERVER): Server.c AuthenticationService.o ClientHandler.o Protocol.o NetworkHeader.h
-	$(CC) $(CFLAGS) Server.c AuthenticationService.o ClientHandler.o Protocol.o -o $@
+$(SERVER): Server.c  $(SERVER_OBJS) NetworkHeader.h
+	$(CC) $(CFLAGS) Server.c $(SERVER_OBJS) -o $@
 
 # build only the client
 client: $(CLIENT)
