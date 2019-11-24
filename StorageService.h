@@ -19,8 +19,21 @@ struct FileInfo {
 
 
 /**
- * Find the info of all regular files in the given directory
+ * Find the info of all files of a given user
+ * @param  username  Name of user
+ * @param  n_files   [out] Number of files found
+ * @return Linked list of file infos.
+ *         The memory for the linked list is dynamically allocated,
+ *         so user must call free_file_info on the returned pointer
+ *         after finishes using the linked list.
+ */
+struct FileInfo* list_user_files(const char* username, int* n_files);
+
+
+/**
+ * Find the info of all files in the given directory
  * @param  dir_path  path to directory
+ * @param  n_files   [out] Number of files found
  * @return Pointer to a FileInfo struct, which represents the
  *         head of a linked list of FileInfo.
  *         The memory for the linked list is dynamically allocated,
@@ -33,7 +46,7 @@ struct FileInfo* list_files(const char* dir_path);
 /**
  * Free the dynamically allocated list of file info
  */
-void free_file_info_list(struct FileInfo* file_info_list);
+void free_file_info(struct FileInfo* file_info_list);
 
 
 #endif // STORAGE_SERVICE_H_

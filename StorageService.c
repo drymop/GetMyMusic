@@ -8,6 +8,9 @@
 #include <sys/stat.h>
 
 
+#define DATABASE_DIR = "data"
+
+
 /**
  * Check if the path refers to a regular file (as opposed to a directory/sym link/etc.)
  */
@@ -19,7 +22,34 @@ bool is_regular_file(const char *path)
 }
 
 
-struct FileInfo* list_files(const char* dir_path) {
+struct FileInfo* list_user_files(const char* username, int* n_files) {
+	/*
+	 * Construct path to user's directory
+	 */
+	size_t db_dir_len = strlen(DATABASE_DIR);
+	size_t username_len = strlen(username);
+	// dir path is "<DATABASE_DIR>/<username>"
+	// 2 extra char for slash and null terminator
+	char* dir_path = malloc(username_len + db_dir_len + 2); 
+	memcpy(dir_path, DATABASE_DIR, db_dir_len);
+	dir_path[db_dir_len] = '/';
+	// end path with username and null terminator
+	memcpy(dir_path + db_dir_len + 1, username, username_len + 1);
+
+	/*
+	 * Get a list of all user files
+	 */
+	struct FileInfo* file_list = list_files(dir_path, n_files);
+
+	free(dir_path);
+	return file_list;
+}
+
+
+
+struct FileInfo* list_files(const char* dir_path, int* n_files) {
+	*n_files = 0;
+	
 	// open the directory 
 	DIR* dir;
 	struct dirent* entry;
@@ -61,6 +91,7 @@ struct FileInfo* list_files(const char* dir_path) {
 		// here, we add the node to the top of list, because it's easier
 		node->next_info = info_list;
 		info_list = node;
+		(*n_files)++;
 	}
 
 	free(file_path);
@@ -68,7 +99,7 @@ struct FileInfo* list_files(const char* dir_path) {
 }
 
 
-void free_file_info_list(struct FileInfo* file_info_list) {
+void free_file_info(struct FileInfo* file_info_list) {
 	struct FileInfo* head = file_info_list;
 	while (file_info_list != NULL) {
 		head = file_info_list;
