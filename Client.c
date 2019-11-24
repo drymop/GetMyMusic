@@ -70,7 +70,7 @@ int main (int argc, char *argv[]) {
     // Prompt for username and password
     bool is_new_user = true;
     while (true) {
-        printf("\nLogon or signup?\n1. Logo n\n2. Sign up\n");
+        printf("\nLogon or signup?\n1. Logon\n2. Sign up\n");
         fgets(input, BUFFSIZE, stdin);
         int choice = atoi(input);
         if (choice == 1) {
