@@ -4,6 +4,7 @@ SERVER = server.out
 CLIENT = client.out
 
 SERVER_OBJS = AuthenticationService.o ClientHandler.o FileChecksum.o Protocol.o StorageService.o
+CLIENT_OBJS = FileChecksum.o Protocol.o StorageService.o
 
 # compile object file from corresponding .c and .h file
 %.o: %.c %.h
@@ -19,8 +20,8 @@ $(SERVER): Server.c  $(SERVER_OBJS) NetworkHeader.h
 
 # build only the client
 client: $(CLIENT)
-$(CLIENT): Client.c Protocol.o NetworkHeader.h
-	$(CC) $(CFLAGS) Client.c Protocol.o -o $@
+$(CLIENT): Client.c $(CLIENT_OBJS) NetworkHeader.h
+	$(CC) $(CFLAGS) Client.c $(CLIENT_OBJS) -o $@
 
 clean:
 	rm -f *.o *.out $(SERVER) $(CLIENT)

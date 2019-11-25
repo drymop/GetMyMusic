@@ -15,9 +15,14 @@
 
 // MAX_USERNAME_LEN (63) + null terminator + 4-byte hash
 #define MAX_LINE_LEN 68
+#define DATABASE_DIR  "serverdata"
+#define DATABASE_FILE "serverdata/password.dat"
 
 
-static const char* DATABASE_FILE = "data/password.dat";
+void initialize_authentication_service() {
+	// simply create the folder to store data
+	mkdir(DATABASE_DIR, 700);
+}
 
 
 /**

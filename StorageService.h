@@ -19,6 +19,12 @@ struct FileInfo {
 
 
 /**
+ * Initialize this service on server
+ */
+void initialize_storage_service();
+
+
+/**
  * Find the info of all files of a given user
  * @param  username  Name of user
  * @param  n_files   [out] Number of files found

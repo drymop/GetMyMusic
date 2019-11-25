@@ -3,13 +3,12 @@
 #include <stdbool.h>
 
 #include "AuthenticationService.h"
+#include "StorageService.h"
 #include "NetworkHeader.h"
 #include "Protocol.h"
 
 
-/**
- * Global buffer for reading/writing packet
- */
+/** Global buffer for reading/writing packet */
 static char packet_buffer[BUFFSIZE+1];
 
 
@@ -18,21 +17,32 @@ static char packet_buffer[BUFFSIZE+1];
  */
 
 /**
- * Close the connection to a client, and clean the client's info
+ * Close the connection to a client, and clear the client's info
  * @param client_info Address of the struct storing the client's info
  */
 void remove_client(struct ClientInfo* client_info);
 
 
 /**
- * Handle a SIGNUP request
+ * Handle a LOGON or SIGNUP request. Authenticate user and return a token.
  * @param request_len Length of request packet
  * @param client_info Address of the client info struct
  */
 ssize_t handle_logon(int request_len, struct ClientInfo* client_info, bool is_new_user);
 
 
+/**
+ * Handle a LEAVE request. Close the connection to client, and clear client's info.
+ * @param request_len Length of request packet
+ * @param client_info Address of the client info struct
+ */
 ssize_t handle_leave(struct ClientInfo* client_info);
+
+
+/**
+ * Handle a LIST request. Send back a list of user's files.
+ */
+ssize_t handle_list(struct ClientInfo* client_info);
 
 
 /**
@@ -45,6 +55,12 @@ uint32_t generate_random_token();
 /*
  * Public function implementations
  */
+
+
+void initialize_client_handler() {
+    initialize_authentication_service();
+    initialize_storage_service();
+}
 
 
 void handle_client(struct ClientInfo* client_info) {
@@ -68,13 +84,13 @@ void handle_client(struct ClientInfo* client_info) {
     // construct response packet
     ssize_t response_len;
     switch (header->type) {
-        case TYPE_SIGNUP:
+        case TYPE_SIGNUP_REQUEST:
             response_len = handle_logon(request_len, client_info, true);
             break;
-        case TYPE_LOGON:
+        case TYPE_LOGON_REQUEST:
             response_len = handle_logon(request_len, client_info, false);
             break;
-        case TYPE_LEAVE:
+        case TYPE_LEAVE_REQUEST:
             response_len = handle_leave(client_info);
             break;
         default:
@@ -155,6 +171,23 @@ ssize_t handle_leave(struct ClientInfo* client_info) {
     printf("Client %s left\n", client_info->username);
     return -1;
 }
+
+
+ssize_t handle_list(struct ClientInfo* client_info) {
+    int n_files;
+    struct FileInfo* client_files = list_user_files(client_info->username, &n_files);
+    // print out list of files
+    int i;
+    printf("%-32s%s\n", "File name", "Checksum");
+    for (i = 0; i < n_files; i++) {
+        printf("%-32s%12x\n", client_files->name, client_files->checksum);
+    }
+
+    // response packet
+    return make_list_response(
+            packet_buffer, BUFFSIZE, client_info->session_token, client_files, n_files);
+}
+
 
 
 void remove_client(struct ClientInfo* client_info) {

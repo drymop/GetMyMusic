@@ -80,10 +80,6 @@ ssize_t make_header_only_packet(char* buffer, size_t buff_len, enum PacketType t
 }
 
 
-/**
- * Make the logon packet containing user name and password
- * Return length of packet, or -1 if fail
- */
 ssize_t make_logon_request(char* buffer, 
                      size_t buff_len, 
                      bool is_new_account,
@@ -102,7 +98,7 @@ ssize_t make_logon_request(char* buffer,
 
     /* write header */
 
-    enum PacketType type = is_new_account? TYPE_SIGNUP : TYPE_LOGON;
+    enum PacketType type = is_new_account? TYPE_SIGNUP_REQUEST : TYPE_LOGON_REQUEST;
     make_header(buffer, type, packet_len, 0);
 
     /* write data */
@@ -119,20 +115,44 @@ ssize_t make_logon_request(char* buffer,
 
 
 ssize_t make_leave_request(char* buffer, size_t buff_len, uint32_t token) {
-    return make_header_only_packet(buffer, buff_len, TYPE_LEAVE, token);
+    return make_header_only_packet(buffer, buff_len, TYPE_LEAVE_REQUEST, token);
 }
 
 
-/**
- * Make the packet indicating client is leaving the server
- * Return length of packet, or -1 if fail
- */
-ssize_t make_list_packet(char* buffer, size_t buff_len, uint32_t token) {
-    return make_header_only_packet(buffer, buff_len, TYPE_LIST, token);
+ssize_t make_list_request(char* buffer, size_t buff_len, uint32_t token) {
+    return make_header_only_packet(buffer, buff_len, TYPE_LIST_REQUEST, token);
 }
 
 
-ssize_t make_download_packet(
+ssize_t make_list_response(char* buffer, size_t buff_len, uint32_t token, 
+        struct FileInfo* file_info, int n_files) {
+    // make sure buffer is big enough for packet
+    size_t packet_len = HEADER_LEN + (MAX_FILE_NAME_LEN + 4) * n_files;
+    if (buff_len < packet_len) {
+        return -1;
+    }
+
+    // write header
+    make_header(buffer, TYPE_LIST_RESPONSE, packet_len, token);
+    buffer += HEADER_LEN;
+
+    // write data
+    int i;
+    for (i = 0; i < n_files; i++) {
+        // file name
+        memcpy(buffer, file_info->name, MAX_FILE_NAME_LEN);
+        buffer += MAX_FILE_NAME_LEN;
+        // 4-byte checksum
+        uint32_t checksum_network_endian = htonl(file_info->checksum);
+        memcpy(buffer, &checksum_network_endian, 4);
+        buffer += 4;
+    }
+
+    return packet_len;
+}
+
+
+ssize_t make_file_request(
         char* buffer, size_t buff_len, uint32_t token, const char* file_name) {
     size_t file_name_len = strlen(file_name) + 1;  // include null terminator
     size_t packet_len = HEADER_LEN + file_name_len;
@@ -143,16 +163,15 @@ ssize_t make_download_packet(
     }
 
     // write header and data
-    make_header(buffer, TYPE_DOWNLOAD, packet_len, token);
+    make_header(buffer, TYPE_FILE_REQUEST, packet_len, token);
     memcpy(buffer + HEADER_LEN, file_name, file_name_len);
     return packet_len;
 }
 
 
 ssize_t make_token_response(char* buffer, size_t buff_len, uint32_t token) {
-    return make_header_only_packet(buffer, buff_len, TYPE_TOKEN, token);
+    return make_header_only_packet(buffer, buff_len, TYPE_TOKEN_RESPONSE, token);
 }
-
 
 
 

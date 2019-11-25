@@ -24,6 +24,12 @@ struct ClientInfo {
 
 
 /**
+ * Initialize
+ */
+void initialize_client_handler();
+
+
+/**
  * Handle a client request, and update the client info if needed
  */
 void handle_client(struct ClientInfo* client_info);

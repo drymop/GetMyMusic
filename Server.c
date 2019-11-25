@@ -69,6 +69,9 @@ int main(int argc, char *argv[])
 	struct ClientInfo client_infos[MAX_CONNECTIONS];
 	memset(client_infos, 0, MAX_CONNECTIONS * sizeof(struct ClientInfo));
 
+	// intialize client handler
+	initialize_client_handler();
+
 	/*
 	 * Do all the work here
 	 */

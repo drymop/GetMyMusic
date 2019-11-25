@@ -14,6 +14,12 @@
 
 
 /**
+ * Initalize this service on server
+ */
+void initialize_authentication_service();
+
+
+/**
  * Check if the password for the given username is correct
  * @return true if the username with the given password exist, else false
  */

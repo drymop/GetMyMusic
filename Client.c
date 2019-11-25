@@ -6,6 +6,7 @@
 
 #include "NetworkHeader.h"
 #include "Protocol.h"
+#include "StorageService.h"
 
 
 /**
@@ -63,6 +64,7 @@ int main (int argc, char *argv[]) {
     int server_socket = create_socket(server, port);
     char packet[BUFFSIZE];
     char input[BUFFSIZE];
+    int i;
 
     /*
      * Logon/sign-up
@@ -101,6 +103,25 @@ int main (int argc, char *argv[]) {
     struct PacketHeader* header = (struct PacketHeader*) packet;
     uint32_t session_token = header->session_token;
     printf("Token is %u\n", session_token);
+
+    // Ask for list of files from server
+    packet_len = make_list_request(packet, BUFFSIZE, session_token);
+    send(server_socket, packet, packet_len, 0);
+
+    // receive list of files from server
+    packet_len = receive_packet(server_socket, packet, BUFFSIZE);
+    if (packet_len <= 0) {
+        printf("Error when receiving list repsonse\n");
+    }
+    int n_files = header->packet_len / (MAX_FILE_NAME_LEN+4);
+    char* cur_entry = packet + HEADER_LEN;
+    printf("%-32s%s\n", "File name", "Checksum");
+    for (i = 0; i < n_files; i++) {
+        uint32_t checksum;
+        memcpy(&checksum, cur_entry + MAX_FILE_NAME_LEN, 4);
+        checksum = ntohl(checksum);
+        printf("%-32s%12x\n", cur_entry, checksum);
+    }
 
     // Request to leave
     packet_len = make_leave_request(packet, BUFFSIZE, session_token);

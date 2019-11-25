@@ -8,7 +8,13 @@
 #include <sys/stat.h>
 
 
-#define DATABASE_DIR "data"
+#define DATABASE_DIR "serverdata"
+
+
+void initialize_storage_service() {
+	// simply create the folder to store user files
+	mkdir(DATABASE_DIR, 700);
+}
 
 
 /**
