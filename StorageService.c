@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 
 
-#define DATABASE_DIR = "data"
+#define DATABASE_DIR "data"
 
 
 /**

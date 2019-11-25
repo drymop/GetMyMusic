@@ -5,7 +5,7 @@
 #include "FileChecksum.h"
 
 
-#define MAX_FILE_NAME_LEN 256 // this includes null-terminator
+#define MAX_FILE_NAME_LEN 64 // this includes null-terminator
 
 
 /**
@@ -40,7 +40,7 @@ struct FileInfo* list_user_files(const char* username, int* n_files);
  *         so user must call free_file_info on the returned pointer
  *         after finishes using the linked list.
  */
-struct FileInfo* list_files(const char* dir_path);
+struct FileInfo* list_files(const char* dir_path, int* n_files);
 
 
 /**
