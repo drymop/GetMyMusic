@@ -69,10 +69,30 @@ struct FileInfo* get_server_files(int server_socket, char* buffer, uint32_t sess
 struct FileInfo* get_missing_files(struct FileInfo* src, struct FileInfo* dst);
 
 
+/**
+ * Get the files that only exist in client or in server. The 2 lists returned
+ * are dynamically allocated, and must be freed using free_file_info()
+ *
+ * @param  server_socket   Server socket
+ * @param  buffer          Buffer to receive packet
+ * @param  session_token   Session token of current user
+ * @param  client_missings [out] Address of variable to store list of files
+ *                         missing from client
+ * @param  server_missings [out] Address of variable to store list of files
+ *                         missing from server
+ */
+void get_client_server_diffs(int server_socket, char* buffer, uint32_t session_token, 
+        struct FileInfo** client_missings, struct FileInfo** server_missings);
+
+
+
 void handle_list(int server_socket, char* buffer, uint32_t session_token);
 
 
 void handle_diff(int server_socket, char* buffer, uint32_t session_token);
+
+
+void handle_sync(int server_socket, char* buffer, uint32_t session_token);
 
 
 /**
@@ -140,6 +160,8 @@ int main (int argc, char *argv[]) {
 
     // diff
     handle_diff(server_socket, buffer, session_token);
+
+    handle_sync(server_socket, buffer, session_token);
 
     // Request to leave
     packet_len = make_leave_request(buffer, BUFFSIZE, session_token);
@@ -317,6 +339,87 @@ struct FileInfo* get_missing_files(struct FileInfo* src, struct FileInfo* dst) {
 }
 
 
+void get_client_server_diffs(int server_socket, char* buffer, uint32_t session_token, 
+        struct FileInfo** client_missings, struct FileInfo** server_missings) {
+    int n_server_files, n_client_files;
+    struct FileInfo* server_files = get_server_files(server_socket, buffer, session_token, &n_server_files);
+    struct FileInfo* client_files = list_files(CLIENT_DIR, &n_client_files);
+
+    *client_missings = get_missing_files(server_files, client_files);
+    *server_missings = get_missing_files(client_files, server_files);
+
+    free_file_info(server_files);
+    free_file_info(client_files);
+}
+
+
+void upload_file(int server_socket, char* buffer, uint32_t session_token, const char* filename) {
+    // open file descriptor
+    char* file_path = join_path(CLIENT_DIR, filename);
+    printf("Uploading file %s\n", file_path);
+    FILE* file = fopen(file_path, "rb");
+    free(file_path);
+    if (file == NULL) {
+        return;
+    }
+    // get size of file
+    fseek(file, 0, SEEK_END);
+    size_t file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    printf("File has size %ld bytes\n", file_size);
+    // send header
+    size_t packet_len = make_file_transfer_header(buffer, BUFFSIZE, session_token, MAX_FILE_NAME_LEN + file_size);
+    send(server_socket, buffer, packet_len, 0);
+    // send file name
+    send(server_socket, filename, MAX_FILE_NAME_LEN, 0);
+    // send the entire file
+    while ((packet_len = make_file_transfer_body(buffer, BUFFSIZE, file)) > 0) {
+        printf("Send %ld bytes\n", packet_len);
+        send(server_socket, buffer, packet_len, 0);
+    }
+    fclose(file);
+}
+
+
+void download_file(int server_socket, char* buffer, uint32_t session_token, const char* file_name) {
+    // request the server to send the file
+    size_t packet_len = make_file_request(buffer, BUFFSIZE, session_token, file_name);
+    send(server_socket, buffer, packet_len, 0);
+
+    // receive the file back
+    size_t n_received = receive_packet(server_socket, buffer, BUFFSIZE);
+    struct PacketHeader* header = (struct PacketHeader*) buffer;
+    size_t response_len = ntohs(header->packet_len);
+
+    // open a new file to write to
+    char* file_path = join_path(CLIENT_DIR, file_name);
+    FILE* file = fopen(file_path, "wb");
+    printf("Downloading file %s\n", file_path);
+
+    // write the file content to file
+    fwrite(buffer + HEADER_LEN, 1, n_received - HEADER_LEN, file);
+    printf("Write first %ld bytes\n", n_received - HEADER_LEN);
+
+    // continue to receive more file content and write to file
+    while(n_received < response_len) {
+        int n_new_bytes = recv(server_socket, buffer, BUFFSIZE, 0);
+        if (n_new_bytes <= 0) {
+            // fail to recv
+            fclose(file);
+            remove(file_path);        
+            free(file_path);
+            return;
+        }
+        n_received += n_new_bytes;
+        fwrite(buffer, 1, n_new_bytes, file);
+        printf("Write %d bytes\n", n_new_bytes);
+    }
+
+    fclose(file);
+    free(file_path);
+}
+
+
 void handle_list(int server_socket, char* buffer, uint32_t session_token) {
     int n_files;
     struct FileInfo* server_files = get_server_files(server_socket, buffer, session_token, &n_files);
@@ -333,13 +436,12 @@ void handle_list(int server_socket, char* buffer, uint32_t session_token) {
 
 
 void handle_diff(int server_socket, char* buffer, uint32_t session_token) {
-    int n_server_files, n_client_files;
-    struct FileInfo* server_files = get_server_files(server_socket, buffer, session_token, &n_server_files);
-    struct FileInfo* client_files = list_files(CLIENT_DIR, &n_client_files);
+    // get the diffs of server and client's files
+    struct FileInfo* client_missings;
+    struct FileInfo* server_missings;
+    get_client_server_diffs(server_socket, buffer, session_token, &client_missings, &server_missings);
 
-    struct FileInfo* client_missings = get_missing_files(server_files, client_files);
-    struct FileInfo* server_missings = get_missing_files(client_files, server_files);
-
+    // print the list of missing files
     printf("\nFiles not in client:\n");
     struct FileInfo* cur_file;
     for (cur_file = client_missings; cur_file != NULL; cur_file = cur_file->next) {
@@ -351,8 +453,33 @@ void handle_diff(int server_socket, char* buffer, uint32_t session_token) {
     }
     printf("\n");
 
-    free_file_info(server_files);
-    free_file_info(client_files);
+    // release dynamically allocated resources
     free_file_info(server_missings);
     free_file_info(client_missings);
 }
+
+
+void handle_sync(int server_socket, char* buffer, uint32_t session_token) {
+    // get the diffs of server and client's files
+    struct FileInfo* client_missings;
+    struct FileInfo* server_missings;
+    get_client_server_diffs(server_socket, buffer, session_token, &client_missings, &server_missings);
+
+    struct FileInfo* cur_file;
+    // upload to server the missing files
+    for (cur_file = server_missings; cur_file != NULL; cur_file = cur_file->next) {
+        // send file
+        upload_file(server_socket, buffer, session_token, cur_file->name);
+        // receive confirmation from server
+        receive_packet(server_socket, buffer, BUFFSIZE);
+    }
+
+    for (cur_file = client_missings; cur_file != NULL; cur_file = cur_file->next) {
+        // send file
+        download_file(server_socket, buffer, session_token, cur_file->name);
+    }
+
+    free_file_info(client_missings);
+    free_file_info(server_missings);
+}
+

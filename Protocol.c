@@ -18,7 +18,7 @@ ssize_t receive_packet_until(int socket, char* buffer, size_t buff_len, int n_re
     while(n_received < target_len) {
         int n_new_bytes = recv(socket, buffer + n_received, 
                                buff_len - n_received, 0);
-        if (n_new_bytes <= 0) {
+        if (n_new_bytes < 0) {
             // fail to recv
             return -1;
         }
@@ -43,6 +43,11 @@ ssize_t receive_packet(int socket ,char* buffer, size_t buff_len) {
     }
     struct PacketHeader* header = (struct PacketHeader*)buffer;
     int packet_len = ntohs(header->packet_len);
+    
+    // don't receive entire packet if it's too large
+    if (packet_len > buff_len) {
+        packet_len = buff_len;
+    }
 
     // receive the rest of the packet
     n_received = receive_packet_until(socket, buffer, buff_len, n_received, packet_len);
@@ -114,6 +119,11 @@ ssize_t make_logon_request(char* buffer,
 }
 
 
+ssize_t make_token_response(char* buffer, size_t buff_len, uint32_t token) {
+    return make_header_only_packet(buffer, buff_len, TYPE_TOKEN_RESPONSE, token);
+}
+
+
 ssize_t make_leave_request(char* buffer, size_t buff_len, uint32_t token) {
     return make_header_only_packet(buffer, buff_len, TYPE_LEAVE_REQUEST, token);
 }
@@ -170,16 +180,27 @@ ssize_t make_file_request(
 }
 
 
-ssize_t make_token_response(char* buffer, size_t buff_len, uint32_t token) {
-    return make_header_only_packet(buffer, buff_len, TYPE_TOKEN_RESPONSE, token);
+ssize_t make_file_transfer_header(char* buffer, size_t buff_len, uint32_t token, uint16_t data_len) {
+    if (buff_len < HEADER_LEN) {
+        return -1;
+    }
+    make_header(buffer, TYPE_FILE_TRANSFER, HEADER_LEN + data_len, token);
+    return HEADER_LEN;
 }
 
 
+ssize_t make_file_transfer_body(char* buffer, size_t buff_len, FILE* file) {
+    return fread(buffer, 1, buff_len, file);
+}
 
 
+ssize_t make_file_received_packet(char* buffer, size_t buff_len, uint32_t token) {
+    return make_header_only_packet(buffer, buff_len, TYPE_FILE_RECEIVED, token);
+}
 
 
-
-
+ssize_t make_error_packet(char* buffer, size_t buff_len, uint32_t token) {
+    return make_header_only_packet(buffer, buff_len, TYPE_ERROR, token);
+}
 
 

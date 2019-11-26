@@ -6,9 +6,10 @@
 #define PROTOCOL_H_
 
 
-#include <stdlib.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdint.h>     /* integer of fixed size */
+#include <stdio.h>      /* file IO */
 #include <sys/types.h>
 
 #include "StorageService.h"
@@ -30,6 +31,8 @@ enum PacketType {
     TYPE_LIST_RESPONSE,
     TYPE_FILE_REQUEST,
     TYPE_FILE_TRANSFER,
+    TYPE_FILE_RECEIVED,
+    TYPE_ERROR,
 };
 
 /**
@@ -78,5 +81,20 @@ ssize_t make_list_request(char* buffer, size_t buff_len, uint32_t token);
 ssize_t make_list_response(char* buffer, size_t buff_len, uint32_t token, 
         struct FileInfo* file_info, int n_files);
 
+
+ssize_t make_file_request(
+        char* buffer, size_t buff_len, uint32_t token, const char* file_name);
+
+
+ssize_t make_file_transfer_header(char* buffer, size_t buff_len, uint32_t token, uint16_t data_len);
+
+
+ssize_t make_file_transfer_body(char* buffer, size_t buff_len, FILE* file);
+
+
+ssize_t make_file_received_packet(char* buffer, size_t buff_len, uint32_t token);
+
+
+ssize_t make_error_packet(char* buffer, size_t buff_len, uint32_t token);
 
 #endif // PROTOCOL_H_

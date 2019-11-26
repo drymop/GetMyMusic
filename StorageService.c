@@ -16,25 +16,6 @@
  */
 
 /**
- * @return A string representing the path to an user directory
- *         The string is dynamically allocated, and needed to be
- *         freed afterward.
- */
-char* path_to_user(const char* username) {
-	size_t db_dir_len = strlen(DATABASE_DIR);
-	size_t username_len = strlen(username);
-	// dir path is "<DATABASE_DIR>/<username>"
-	// 2 extra char for slash and null terminator
-	char* user_dir_path = malloc(username_len + db_dir_len + 2); 
-	memcpy(user_dir_path, DATABASE_DIR, db_dir_len);
-	user_dir_path[db_dir_len] = '/';
-	// end path with username and null terminator
-	memcpy(user_dir_path + db_dir_len + 1, username, username_len + 1);
-	return user_dir_path;
-}
-
-
-/**
  * Check if the path refers to a regular file (as opposed to a directory/sym link/etc.)
  */
 bool is_regular_file(const char *path)
@@ -69,15 +50,7 @@ struct FileInfo* list_user_files(const char* username, int* n_files) {
 	/*
 	 * Construct path to user's directory
 	 */
-	size_t db_dir_len = strlen(DATABASE_DIR);
-	size_t username_len = strlen(username);
-	// dir path is "<DATABASE_DIR>/<username>"
-	// 2 extra char for slash and null terminator
-	char* dir_path = malloc(username_len + db_dir_len + 2); 
-	memcpy(dir_path, DATABASE_DIR, db_dir_len);
-	dir_path[db_dir_len] = '/';
-	// end path with username and null terminator
-	memcpy(dir_path + db_dir_len + 1, username, username_len + 1);
+	char* dir_path = path_to_user(username);
 
 	/*
 	 * Get a list of all user files
@@ -91,7 +64,6 @@ struct FileInfo* list_user_files(const char* username, int* n_files) {
 
 
 struct FileInfo* list_files(const char* dir_path, int* n_files) {
-	printf("Search for files in %s\n", dir_path);
 	*n_files = 0;
 	
 	// open the directory 
@@ -121,7 +93,6 @@ struct FileInfo* list_files(const char* dir_path, int* n_files) {
 		if (!is_regular_file(file_path)) {
 			continue;
 		}
-		printf("Found filed %s\n", entry->d_name);
 
 		// create a new linked list node to store file info
 		struct FileInfo* node = malloc(sizeof(struct FileInfo));
@@ -152,4 +123,22 @@ void free_file_info(struct FileInfo* file_info_list) {
 		file_info_list = file_info_list->next;
 		free(head);
 	}
+}
+
+
+char* join_path(const char* p1, const char* p2) {
+	size_t len1 = strlen(p1);
+	size_t len2 = strlen(p2);
+	// 2 extra char for slash and null terminator
+	char* path = malloc(len1 + len2 + 2); 
+	memcpy(path, p1, len1);
+	path[len1] = '/';
+	// end path with username and null terminator
+	memcpy(path + len1 + 1, p2, len2 + 1);
+	return path;
+}
+
+
+char* path_to_user(const char* username) {
+	return join_path(DATABASE_DIR, username);
 }

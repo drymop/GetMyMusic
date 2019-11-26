@@ -62,4 +62,18 @@ struct FileInfo* list_files(const char* dir_path, int* n_files);
 void free_file_info(struct FileInfo* file_info_list);
 
 
+/**
+ * @return A dynamically allocated string representing the path <p1>/<p2>
+ */
+char* join_path(const char* p1, const char* p2);
+
+
+/**
+ * @return A string representing the path to an user directory
+ *         The string is dynamically allocated, and needed to be
+ *         freed afterward.
+ */
+char* path_to_user(const char* username);
+
+
 #endif // STORAGE_SERVICE_H_
