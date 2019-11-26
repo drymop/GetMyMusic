@@ -45,6 +45,24 @@ int create_socket(const char* server, const char* server_port);
 
 
 /**
+ * Query the server for the list of files belong to the user
+ *
+ * @param  server_socket Server socket
+ * @param  buffer        Buffer to receive packet
+ * @param  session_token Session token of current user
+ * @param  n_files       [out] Address of variable to store number of files
+ * @return Linked list of file infos at server. This is dynamically allocated,
+ *         and require a call to free_file_info() to release memory.
+ */
+struct FileInfo* get_server_files(int server_socket, char* buffer, uint32_t session_token, int* n_files);
+
+
+void handle_list(int server_socket, char* buffer, uint32_t session_token);
+
+
+
+
+/**
  * For now, the client simply prompt for login info, then send it to server
  * TODO: LOTS to implement
  */
@@ -62,9 +80,8 @@ int main (int argc, char *argv[]) {
      * Initialize socket and IO buffer
      */
     int server_socket = create_socket(server, port);
-    char packet[BUFFSIZE];
+    char buffer[BUFFSIZE];
     char input[BUFFSIZE];
-    int i;
 
     /*
      * Logon/sign-up
@@ -91,45 +108,26 @@ int main (int argc, char *argv[]) {
     printf("%s\n", password);
 
     // Create logon request
-    ssize_t packet_len = make_logon_request(packet, BUFFSIZE, is_new_user, username, password);
-    send(server_socket, packet, packet_len, 0);
+    ssize_t packet_len = make_logon_request(buffer, BUFFSIZE, is_new_user, username, password);
+    send(server_socket, buffer, packet_len, 0);
 
     // Receive a session token
-    packet_len = receive_packet(server_socket, packet, BUFFSIZE);
+    packet_len = receive_packet(server_socket, buffer, BUFFSIZE);
     if (packet_len <= 0) {
-        printf("Error when receiving repsonse\n");
+        printf("Fail to login/signup\n");
         exit(1);
     }
 
-    struct PacketHeader* header = (struct PacketHeader*) packet;
+    struct PacketHeader* header = (struct PacketHeader*) buffer;
     uint32_t session_token = header->session_token;
     printf("Token is %u\n", session_token);
 
-    // Ask for list of files from server
-    packet_len = make_list_request(packet, BUFFSIZE, session_token);
-    send(server_socket, packet, packet_len, 0);
-
-    // receive list of files from server
-    packet_len = receive_packet(server_socket, packet, BUFFSIZE);
-    if (packet_len <= 0) {
-        printf("Error when receiving list repsonse\n");
-        exit(1);
-    }
-    int n_files = (packet_len - HEADER_LEN) / (MAX_FILE_NAME_LEN+4);
-    printf("Found %d files\n", n_files);
-    char* cur_entry = packet + HEADER_LEN;
-    printf("%-32s%8s\n", "File name", "Checksum");
-    for (i = 0; i < n_files; i++) {
-        uint32_t checksum;
-        memcpy(&checksum, cur_entry + MAX_FILE_NAME_LEN, 4);
-        checksum = ntohl(checksum);
-        printf("%-32s%8x\n", cur_entry, checksum);
-        cur_entry += MAX_FILE_NAME_LEN + 4;
-    }
+    // list file from server
+    handle_list(server_socket, buffer, session_token);
 
     // Request to leave
-    packet_len = make_leave_request(packet, BUFFSIZE, session_token);
-    send(server_socket, packet, packet_len, 0);
+    packet_len = make_leave_request(buffer, BUFFSIZE, session_token);
+    send(server_socket, buffer, packet_len, 0);
 
     // Release resource and exit
     close(server_socket);
@@ -242,4 +240,50 @@ int create_socket(const char* server, const char* server_port) {
 }
 
 
+struct FileInfo* get_server_files(int server_socket, char* buffer, uint32_t session_token, int* n_files) {
+    // Ask for list of files from server
+    ssize_t packet_len = make_list_request(buffer, BUFFSIZE, session_token);
+    send(server_socket, buffer, packet_len, 0);
 
+    // receive list of files from server
+    packet_len = receive_packet(server_socket, buffer, BUFFSIZE);
+    if (packet_len <= 0) {
+        printf("Error when receiving list repsonse\n");
+        exit(1);
+    }
+
+    // parse packet into a list of files
+    struct FileInfo* server_files = NULL;
+    *n_files = (packet_len - HEADER_LEN) / (MAX_FILE_NAME_LEN+4);
+    char* cur_entry = buffer + HEADER_LEN;
+    int i;
+    for (i = 0; i < *n_files; i++) {
+        struct FileInfo* cur_file = malloc(sizeof(struct FileInfo));
+        // copy file name
+        memcpy(cur_file->name, cur_entry, MAX_FILE_NAME_LEN);
+        cur_entry += MAX_FILE_NAME_LEN;
+        // copy file checksum (with endian corrected)
+        memcpy(&cur_file->checksum, cur_entry, 4);
+        cur_file->checksum = ntohl(cur_file->checksum);
+        cur_entry += 4;
+        // add file to head of server file list
+        cur_file->next = server_files;
+        server_files = cur_file;
+    }
+    return server_files;
+}
+
+
+void handle_list(int server_socket, char* buffer, uint32_t session_token) {
+    int n_files;
+    struct FileInfo* server_files = get_server_files(server_socket, buffer, session_token, &n_files);
+    printf("\nFound %d files\n", n_files);
+    printf("%-32s%8s\n", "File name", "Checksum");
+    struct FileInfo* cur_file;
+    // print all file infos in the linked list
+    for (cur_file = server_files; cur_file != NULL; cur_file = cur_file->next) {
+        printf("%-32s%8x\n", cur_file->name, cur_file->checksum);
+    }
+    printf("\n");
+    free_file_info(server_files);
+}
