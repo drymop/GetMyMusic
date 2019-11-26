@@ -9,6 +9,9 @@
 #include "StorageService.h"
 
 
+#define CLIENT_DIR "clientdata"
+
+
 /**
  * Print out the error, then exit the program
  * detail can be NULL, in which case no additional detail is printed
@@ -57,9 +60,19 @@ int create_socket(const char* server, const char* server_port);
 struct FileInfo* get_server_files(int server_socket, char* buffer, uint32_t session_token, int* n_files);
 
 
+/**
+ * Return a linked list of files that appear in src but doesn't appear in dst.
+ * The criteria for file equality is checksum
+ * This method allocate memory for the returned list, while not changing the
+ * original lists.
+ */
+struct FileInfo* get_missing_files(struct FileInfo* src, struct FileInfo* dst);
+
+
 void handle_list(int server_socket, char* buffer, uint32_t session_token);
 
 
+void handle_diff(int server_socket, char* buffer, uint32_t session_token);
 
 
 /**
@@ -124,6 +137,9 @@ int main (int argc, char *argv[]) {
 
     // list file from server
     handle_list(server_socket, buffer, session_token);
+
+    // diff
+    handle_diff(server_socket, buffer, session_token);
 
     // Request to leave
     packet_len = make_leave_request(buffer, BUFFSIZE, session_token);
@@ -274,6 +290,33 @@ struct FileInfo* get_server_files(int server_socket, char* buffer, uint32_t sess
 }
 
 
+struct FileInfo* get_missing_files(struct FileInfo* src, struct FileInfo* dst) {
+    struct FileInfo* cur_src;
+    struct FileInfo* cur_dst;
+    struct FileInfo* missing = NULL;
+    for (cur_src = src; cur_src != NULL; cur_src = cur_src->next) {
+        // check if current file in src is found in dst
+        bool found = false;
+        for (cur_dst = dst; cur_dst != NULL; cur_dst = cur_dst->next) {
+            if (cur_src->checksum == cur_dst->checksum) {
+                found = true;
+                break;
+            }
+        }
+        // if not found, add current file to missing list
+        if (!found) {
+            // copy the info into new struct
+            struct FileInfo* cur_file = malloc(sizeof(struct FileInfo));
+            memcpy(cur_file, cur_src, sizeof(struct FileInfo));
+            // add to the head of the missing list
+            cur_file->next = missing;
+            missing = cur_file;
+        }
+    }
+    return missing;
+}
+
+
 void handle_list(int server_socket, char* buffer, uint32_t session_token) {
     int n_files;
     struct FileInfo* server_files = get_server_files(server_socket, buffer, session_token, &n_files);
@@ -286,4 +329,30 @@ void handle_list(int server_socket, char* buffer, uint32_t session_token) {
     }
     printf("\n");
     free_file_info(server_files);
+}
+
+
+void handle_diff(int server_socket, char* buffer, uint32_t session_token) {
+    int n_server_files, n_client_files;
+    struct FileInfo* server_files = get_server_files(server_socket, buffer, session_token, &n_server_files);
+    struct FileInfo* client_files = list_files(CLIENT_DIR, &n_client_files);
+
+    struct FileInfo* client_missings = get_missing_files(server_files, client_files);
+    struct FileInfo* server_missings = get_missing_files(client_files, server_files);
+
+    printf("\nFiles not in client:\n");
+    struct FileInfo* cur_file;
+    for (cur_file = client_missings; cur_file != NULL; cur_file = cur_file->next) {
+        printf("    %s\n", cur_file->name);
+    }
+    printf("\nFiles not in server:\n");
+    for (cur_file = server_missings; cur_file != NULL; cur_file = cur_file->next) {
+        printf("    %s\n", cur_file->name);
+    }
+    printf("\n");
+
+    free_file_info(server_files);
+    free_file_info(client_files);
+    free_file_info(server_missings);
+    free_file_info(client_missings);
 }
