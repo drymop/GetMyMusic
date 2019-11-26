@@ -24,4 +24,6 @@ $(CLIENT): Client.c $(CLIENT_OBJS) NetworkHeader.h
 	$(CC) $(CFLAGS) Client.c $(CLIENT_OBJS) -o $@
 
 clean:
-	rm -f *.o *.out $(SERVER) $(CLIENT)
+	-rm -f *.o *.out $(SERVER) $(CLIENT)
+	-rm -r serverdata/
+	-rm -r clientdata/

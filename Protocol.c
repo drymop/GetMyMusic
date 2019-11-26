@@ -146,6 +146,7 @@ ssize_t make_list_response(char* buffer, size_t buff_len, uint32_t token,
         uint32_t checksum_network_endian = htonl(file_info->checksum);
         memcpy(buffer, &checksum_network_endian, 4);
         buffer += 4;
+        file_info = file_info->next;
     }
 
     return packet_len;

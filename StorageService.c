@@ -11,9 +11,26 @@
 #define DATABASE_DIR "serverdata"
 
 
-void initialize_storage_service() {
-	// simply create the folder to store user files
-	mkdir(DATABASE_DIR, 700);
+/*
+ * Helper functions
+ */
+
+/**
+ * @return A string representing the path to an user directory
+ *         The string is dynamically allocated, and needed to be
+ *         freed afterward.
+ */
+char* path_to_user(const char* username) {
+	size_t db_dir_len = strlen(DATABASE_DIR);
+	size_t username_len = strlen(username);
+	// dir path is "<DATABASE_DIR>/<username>"
+	// 2 extra char for slash and null terminator
+	char* user_dir_path = malloc(username_len + db_dir_len + 2); 
+	memcpy(user_dir_path, DATABASE_DIR, db_dir_len);
+	user_dir_path[db_dir_len] = '/';
+	// end path with username and null terminator
+	memcpy(user_dir_path + db_dir_len + 1, username, username_len + 1);
+	return user_dir_path;
 }
 
 
@@ -25,6 +42,26 @@ bool is_regular_file(const char *path)
     struct stat path_stat;
     stat(path, &path_stat);
     return S_ISREG(path_stat.st_mode);
+}
+
+
+/*
+ * Public functions
+ */
+
+
+void initialize_storage_service() {
+	// simply create the folder to store user files
+	mkdir(DATABASE_DIR, 0777);
+}
+
+
+int create_user_directory(const char* username) {
+	char* user_dir_path = path_to_user(username);
+	printf("Create directory %s\n", user_dir_path);
+	int success = mkdir(user_dir_path, 0777);
+	free(user_dir_path);
+	return success;
 }
 
 
@@ -54,6 +91,7 @@ struct FileInfo* list_user_files(const char* username, int* n_files) {
 
 
 struct FileInfo* list_files(const char* dir_path, int* n_files) {
+	printf("Search for files in %s\n", dir_path);
 	*n_files = 0;
 	
 	// open the directory 
@@ -83,11 +121,13 @@ struct FileInfo* list_files(const char* dir_path, int* n_files) {
 		if (!is_regular_file(file_path)) {
 			continue;
 		}
+		printf("Found filed %s\n", entry->d_name);
 
 		// create a new linked list node to store file info
 		struct FileInfo* node = malloc(sizeof(struct FileInfo));
-		// store name
-		memcpy(node->name, entry->d_name, MAX_FILE_NAME_LEN);
+		// store name with null terminator
+		memcpy(node->name, entry->d_name, MAX_FILE_NAME_LEN-1);
+		node->name[MAX_FILE_NAME_LEN-1] = 0;
 		// store checksum
 		FILE* fd = fopen(file_path, "r");
 		node->checksum = crc32_file_checksum(fd);
@@ -95,7 +135,7 @@ struct FileInfo* list_files(const char* dir_path, int* n_files) {
 
 		// add node to linked list
 		// here, we add the node to the top of list, because it's easier
-		node->next_info = info_list;
+		node->next = info_list;
 		info_list = node;
 		(*n_files)++;
 	}
@@ -109,7 +149,7 @@ void free_file_info(struct FileInfo* file_info_list) {
 	struct FileInfo* head = file_info_list;
 	while (file_info_list != NULL) {
 		head = file_info_list;
-		file_info_list = file_info_list->next_info;
+		file_info_list = file_info_list->next;
 		free(head);
 	}
 }

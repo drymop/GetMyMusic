@@ -1,4 +1,4 @@
-#include "FileChecksum.h"
+#include "file_checksum.h"
 
 #include <stdlib.h>
 #include <stdint.h>  /* integer types of exact size */
@@ -96,7 +96,9 @@ UINT32 crc32_running_checksum(unsigned char *data, size_t data_len, UINT32 inita
     int i;
     for (i = 0; i < data_len; i++) {
         int lookup_ind = (checksum ^ data[i]) & 0xFF;
+        UINT32 prev = checksum;
         checksum = (checksum >> 8) ^ CRC32_TABLE[lookup_ind];
+        printf("%x --> %x\n", prev, checksum);
     }
     return checksum;
 }
@@ -114,6 +116,7 @@ UINT32 crc32_file_checksum(FILE *fd) {
     size_t bytes_read = 0;
     while((bytes_read = fread(buffer, 1, BUFFER_SIZE, fd)) > 0) {
         checksum = crc32_running_checksum(buffer, bytes_read, checksum);
+        printf("Checksum: %x\n", checksum);
     }
 
     // the final running checksum is negated, according to CRC-32 specification

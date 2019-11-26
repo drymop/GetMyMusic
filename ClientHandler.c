@@ -93,6 +93,9 @@ void handle_client(struct ClientInfo* client_info) {
         case TYPE_LEAVE_REQUEST:
             response_len = handle_leave(client_info);
             break;
+        case TYPE_LIST_REQUEST:
+            response_len = handle_list(client_info);
+            break;
         default:
             // unknown request type
             response_len = -1;
@@ -105,7 +108,7 @@ void handle_client(struct ClientInfo* client_info) {
     }
 
     // send back response packet
-    ssize_t sent_bytes = send(client_info->client_socket, packet_buffer, response_len, 0);
+    send(client_info->client_socket, packet_buffer, response_len, 0);
 }
 
 
@@ -151,9 +154,10 @@ ssize_t handle_logon(int request_len, struct ClientInfo* client_info, bool is_ne
         }
     }
     
-    // TODO create user directory
-
-    // save username to client_info
+    /*
+     * Save info about user
+     */
+    create_user_directory(username);
     memcpy(client_info->username, username, username_len);
 
     /*
@@ -178,9 +182,12 @@ ssize_t handle_list(struct ClientInfo* client_info) {
     struct FileInfo* client_files = list_user_files(client_info->username, &n_files);
     // print out list of files
     int i;
-    printf("%-32s%s\n", "File name", "Checksum");
+    struct FileInfo* cur_file = client_files;
+    printf("Found %d files\n", n_files);
+    printf("%-32s%8s\n", "File name", "Checksum");
     for (i = 0; i < n_files; i++) {
-        printf("%-32s%12x\n", client_files->name, client_files->checksum);
+        printf("%-32s%8x\n", cur_file->name, cur_file->checksum);
+        cur_file = cur_file->next;
     }
 
     // response packet

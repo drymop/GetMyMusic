@@ -21,7 +21,7 @@
 
 void initialize_authentication_service() {
 	// simply create the folder to store data
-	mkdir(DATABASE_DIR, 700);
+	mkdir(DATABASE_DIR, 0777);
 }
 
 

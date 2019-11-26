@@ -98,6 +98,7 @@ int main (int argc, char *argv[]) {
     packet_len = receive_packet(server_socket, packet, BUFFSIZE);
     if (packet_len <= 0) {
         printf("Error when receiving repsonse\n");
+        exit(1);
     }
 
     struct PacketHeader* header = (struct PacketHeader*) packet;
@@ -112,15 +113,18 @@ int main (int argc, char *argv[]) {
     packet_len = receive_packet(server_socket, packet, BUFFSIZE);
     if (packet_len <= 0) {
         printf("Error when receiving list repsonse\n");
+        exit(1);
     }
-    int n_files = header->packet_len / (MAX_FILE_NAME_LEN+4);
+    int n_files = (packet_len - HEADER_LEN) / (MAX_FILE_NAME_LEN+4);
+    printf("Found %d files\n", n_files);
     char* cur_entry = packet + HEADER_LEN;
-    printf("%-32s%s\n", "File name", "Checksum");
+    printf("%-32s%8s\n", "File name", "Checksum");
     for (i = 0; i < n_files; i++) {
         uint32_t checksum;
         memcpy(&checksum, cur_entry + MAX_FILE_NAME_LEN, 4);
         checksum = ntohl(checksum);
-        printf("%-32s%12x\n", cur_entry, checksum);
+        printf("%-32s%8x\n", cur_entry, checksum);
+        cur_entry += MAX_FILE_NAME_LEN + 4;
     }
 
     // Request to leave

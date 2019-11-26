@@ -14,7 +14,7 @@
 struct FileInfo {
 	char name[MAX_FILE_NAME_LEN];
 	uint32_t checksum;
-	struct FileInfo* next_info;
+	struct FileInfo* next;
 };
 
 
@@ -22,6 +22,13 @@ struct FileInfo {
  * Initialize this service on server
  */
 void initialize_storage_service();
+
+
+/**
+ * Create the directory to store user's file
+ * @return 0 if success, -1 if fail
+ */
+int create_user_directory(const char* username);
 
 
 /**
