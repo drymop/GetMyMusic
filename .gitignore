@@ -7,4 +7,5 @@
 .DS_Store
 
 # data folder
-data/*
+clientdata/*
+serverdata/*
