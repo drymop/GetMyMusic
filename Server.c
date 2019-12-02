@@ -232,6 +232,7 @@ void accept_client(int server_socket, struct ClientInfo* client_infos) {
 	}
 	// if get to here, max number of clients has been reached
 	// so we reject this new client
-	printf("Reject client\n");
+	printf("Reject client, max number of connections exceeded\n");
+
 	close(client_socket);
 }

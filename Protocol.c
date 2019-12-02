@@ -199,8 +199,14 @@ ssize_t make_file_received_packet(char* buffer, size_t buff_len, uint32_t token)
 }
 
 
-ssize_t make_error_packet(char* buffer, size_t buff_len, uint32_t token) {
-    return make_header_only_packet(buffer, buff_len, TYPE_ERROR, token);
+ssize_t make_error_response(char* buffer, size_t buff_len, uint32_t token, enum ErrorType error) {
+    size_t packet_len = HEADER_LEN + 1;
+    if (buff_len < packet_len) {
+        return -1;
+    }
+    make_header(buffer, buff_len, TYPE_ERROR, token);
+    buffer[HEADER_LEN] = error;
+    return packet_len;
 }
 
 

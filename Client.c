@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 
+#include "AuthenticationService.h"
 #include "NetworkHeader.h"
 #include "Protocol.h"
 #include "StorageService.h"
@@ -85,6 +86,16 @@ void get_client_server_diffs(int server_socket, char* buffer, uint32_t session_t
         struct FileInfo** client_missings, struct FileInfo** server_missings);
 
 
+/**
+ * Prompt the user to input a number between 1 and max_option (inclusive)
+ * @return The option chosen by user
+ */
+int get_input(const char* prompt, int max_option);
+
+
+/*
+ * Handler of each client command
+ */
 
 void handle_list(int server_socket, char* buffer, uint32_t session_token);
 
@@ -96,49 +107,35 @@ void handle_sync(int server_socket, char* buffer, uint32_t session_token);
 
 
 /**
- * For now, the client simply prompt for login info, then send it to server
- * TODO: LOTS to implement
+ * Excecute the client
  */
 int main (int argc, char *argv[]) {
 
     /*
      * Parse arguments supplied to main program
      */
+
     char* server = SERVER_HOST; // init with default value
     char* port = SERVER_PORT;   // init with default value
     parse_arguments(argc, argv, &server, &port);
 
-
     /*
-     * Initialize socket and IO buffer
+     * Initialize socket and IO buffers
      */
+    
     int server_socket = create_socket(server, port);
     char buffer[BUFFSIZE];
-    char input[BUFFSIZE];
 
     /*
      * Logon/sign-up
      */
     // Prompt for username and password
-    bool is_new_user = true;
-    while (true) {
-        printf("\nLogon or signup?\n1. Logon\n2. Sign up\n");
-        fgets(input, BUFFSIZE, stdin);
-        int choice = atoi(input);
-        if (choice == 1) {
-            is_new_user = false;
-            break;
-        } else if (choice == 2) {
-            is_new_user = true;
-            break;
-        }
-    }
-    char username[128];
-    printf("Enter username:\n");
+    int choice = get_input("Logon or signup?\n  1. Logon\n  2. Sign up\n", 2);
+    bool is_new_user = (choice == 2);
+    printf("\nEnter username: ");
+    char username[MAX_USERNAME_LEN];
     scanf("%s", username);
-    char* password = getpass("Enter password:\n");
-    printf("%s\n", username);
-    printf("%s\n", password);
+    char* password = getpass("Enter password: ");
 
     // Create logon request
     ssize_t packet_len = make_logon_request(buffer, BUFFSIZE, is_new_user, username, password);
@@ -147,21 +144,40 @@ int main (int argc, char *argv[]) {
     // Receive a session token
     packet_len = receive_packet(server_socket, buffer, BUFFSIZE);
     if (packet_len <= 0) {
-        printf("Fail to login/signup\n");
-        exit(1);
+        die_with_error("Failed to login/signup", NULL);
     }
 
     struct PacketHeader* header = (struct PacketHeader*) buffer;
     uint32_t session_token = header->session_token;
-    printf("Token is %u\n", session_token);
+    printf("\nWelcome, %s!\n", username);
 
-    // list file from server
-    handle_list(server_socket, buffer, session_token);
+    /*
+     * Handle user's commands
+     */
 
-    // diff
-    handle_diff(server_socket, buffer, session_token);
-
-    handle_sync(server_socket, buffer, session_token);
+    bool quit = false;
+    fgets(buffer, BUFFSIZE, stdin);
+    while(!quit) {
+        choice = get_input("Select command:\n  1. List server files\n  2. Diff\n  3. Sync\n  4. Quit\n", 4);
+        printf("\n");
+        switch(choice) {
+            case 1:
+                // list file from server
+                handle_list(server_socket, buffer, session_token);
+                break;
+            case 2:
+                // diff between client and server files
+                handle_diff(server_socket, buffer, session_token);
+                break;
+            case 3:
+                // sync server and client
+                handle_sync(server_socket, buffer, session_token);
+                break;
+            default:
+                quit = true;
+                break;
+        }
+    }
 
     // Request to leave
     packet_len = make_leave_request(buffer, BUFFSIZE, session_token);
@@ -417,6 +433,20 @@ void download_file(int server_socket, char* buffer, uint32_t session_token, cons
 
     fclose(file);
     free(file_path);
+}
+
+
+int get_input(const char* prompt, int max_option) {
+    static char input[BUFFSIZE];
+    // repeatedly prompt for input, until read a valid input
+    while (true) {
+        printf("%s", prompt);
+        fgets(input, BUFFSIZE, stdin);
+        int choice = atoi(input);
+        if (choice > 0 && choice <= max_option) {
+            return choice;
+        }
+    }
 }
 
 

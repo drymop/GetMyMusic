@@ -35,6 +35,18 @@ enum PacketType {
     TYPE_ERROR,
 };
 
+
+enum ErrorType {
+    ERROR_UNKNOWN = 1,
+    ERROR_MALFORMED_REQUEST,
+    ERROR_SERVER_BUSY,
+    ERROR_USERNAME_TAKEN,
+    ERROR_INVALID_PASSWORD,
+    ERROR_FILE_NOT_EXIST,
+    ERROR_FILE_UPLOAD_FAILED,
+};
+
+
 /**
  * Common packet header
  */
@@ -95,6 +107,6 @@ ssize_t make_file_transfer_body(char* buffer, size_t buff_len, FILE* file);
 ssize_t make_file_received_packet(char* buffer, size_t buff_len, uint32_t token);
 
 
-ssize_t make_error_packet(char* buffer, size_t buff_len, uint32_t token);
+ssize_t make_error_response(char* buffer, size_t buff_len, uint32_t token, enum ErrorType error);
 
 #endif // PROTOCOL_H_
