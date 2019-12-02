@@ -16,6 +16,7 @@ static char packet_buffer[BUFFSIZE+1];
  * Helper function declarations
  */
 
+
 /**
  * Close the connection to a client, and clear the client's info
  * @param client_info Address of the struct storing the client's info
@@ -73,6 +74,35 @@ uint32_t generate_random_token();
 void initialize_client_handler() {
     initialize_authentication_service();
     initialize_storage_service();
+}
+
+
+void accept_client(int server_socket, struct ClientInfo* client_infos, int max_connections) {
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client_socket = accept(server_socket, (struct sockaddr*) &client_addr, &client_addr_len);
+    if (client_socket < 0) {
+        // an error happens
+        char* error_detail = strerror(client_socket);
+        printf("Error when accepting new client: %s\n", error_detail);
+        return;
+    }
+    // find an empty array slot to store client info
+    int i;
+    for (i = 0; i < max_connections; i++) {
+        if (client_infos[i].client_socket <= 0) {
+            client_infos[i].client_socket = client_socket;  
+            printf("Accepted new client at %d\n", i);
+            return;
+        }
+    }
+    // if get to here, max number of clients has been reached
+    // so we reject this new client
+    printf("Reject client, max number of connections exceeded\n");
+    ssize_t response_len = make_error_response(
+            packet_buffer, BUFFSIZE, 0, ERROR_SERVER_BUSY);
+    send(client_socket, packet_buffer, response_len, 0);
+    close(client_socket);
 }
 
 

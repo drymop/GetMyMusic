@@ -39,12 +39,6 @@ void parse_arguments(int argc, char* argv[], int* port);
 int create_socket(int server_port);
 
 
-/**
- * Create connection with a new client, update all book-keeping data
- */
-void accept_client(int server_socket, struct ClientInfo* client_infos);
-
-
 int main(int argc, char *argv[])
 {
 	/*
@@ -111,7 +105,7 @@ int main(int argc, char *argv[])
 		 */
 		// connection from new client
 		if (FD_ISSET(server_socket, &activated_sockets)) {
-			accept_client(server_socket, client_infos);
+			accept_client(server_socket, client_infos, MAX_CONNECTIONS);
 		}
 		// request from connected clients
 		for (i = 0; i < MAX_CONNECTIONS; i++) {
@@ -208,31 +202,4 @@ int create_socket(int server_port) {
 	}
 
 	return server_socket;
-}
-
-
-void accept_client(int server_socket, struct ClientInfo* client_infos) {
-	struct sockaddr_in client_addr;
-	socklen_t client_addr_len = sizeof(client_addr);
-	int client_socket = accept(server_socket, (struct sockaddr*) &client_addr, &client_addr_len);
-	if (client_socket < 0) {
-		// an error happens
-		char* error_detail = strerror(client_socket);
-		printf("Error when accepting new client: %s\n", error_detail);
-		return;
-	}
-	// find an empty array slot to store client info
-	int i;
-	for (i = 0; i < MAX_CONNECTIONS; i++) {
-		if (client_infos[i].client_socket <= 0) {
-			client_infos[i].client_socket = client_socket;	
-			printf("Accepted new client at %d\n", i);
-			return;
-		}
-	}
-	// if get to here, max number of clients has been reached
-	// so we reject this new client
-	printf("Reject client, max number of connections exceeded\n");
-
-	close(client_socket);
 }
