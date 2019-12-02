@@ -10,7 +10,7 @@
 
 #define USERNAME_LEN 128
 #define USERNAME_LEN_WITH_NULL 129
-#define MAX_CONNECTIONS 1
+#define MAX_CONNECTIONS 64
 
 
 /**
