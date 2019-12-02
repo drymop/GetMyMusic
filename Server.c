@@ -105,12 +105,13 @@ int main(int argc, char *argv[])
 		 */
 		// connection from new client
 		if (FD_ISSET(server_socket, &activated_sockets)) {
+			printf("\nHandling connection request\n");				
 			accept_client(server_socket, client_infos, MAX_CONNECTIONS);
 		}
 		// request from connected clients
 		for (i = 0; i < MAX_CONNECTIONS; i++) {
 			if (FD_ISSET(client_infos[i].client_socket, &activated_sockets)) {
-				printf("Handling client %d\n", i);				
+				printf("\nHandling client with client ID = %d\n", i);				
 				handle_client(&client_infos[i]);
 			}
 		}

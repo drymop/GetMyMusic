@@ -92,7 +92,7 @@ void accept_client(int server_socket, struct ClientInfo* client_infos, int max_c
     for (i = 0; i < max_connections; i++) {
         if (client_infos[i].client_socket <= 0) {
             client_infos[i].client_socket = client_socket;  
-            printf("Accepted new client at %d\n", i);
+            printf("Accepted new client, assigned client ID = %d\n", i);
             return;
         }
     }
@@ -251,12 +251,12 @@ ssize_t handle_file_request(struct ClientInfo* client_info, enum ErrorType* erro
     // get file name from request
     char file_name[MAX_FILE_NAME_LEN];
     memcpy(file_name, packet_buffer + HEADER_LEN, MAX_FILE_NAME_LEN);
+    printf("File %s requested\n", file_name);
 
     // open file descriptor
     char* dir_path = path_to_user(client_info->username);
     char* file_path = join_path(dir_path, file_name);
     free(dir_path);
-    printf("File %s requested\n", file_path);
     FILE* file = fopen(file_path, "rb");
     free(file_path);
     if (file == NULL) {

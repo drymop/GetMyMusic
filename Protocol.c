@@ -18,7 +18,7 @@ ssize_t receive_packet_until(int socket, char* buffer, size_t buff_len, int n_re
     while(n_received < target_len) {
         int n_new_bytes = recv(socket, buffer + n_received, 
                                buff_len - n_received, 0);
-        if (n_new_bytes < 0) {
+        if (n_new_bytes <= 0) {
             // fail to recv
             return -1;
         }
@@ -55,10 +55,6 @@ ssize_t receive_packet(int socket ,char* buffer, size_t buff_len) {
     if (n_received != packet_len) {
         return -1;
     }
-
-    // to be safe agains ill-formed reqiest
-    // end the packet with a null terminator for string processing
-    buffer[packet_len] = 0;
     return packet_len;
 }
 
@@ -204,7 +200,7 @@ ssize_t make_error_response(char* buffer, size_t buff_len, uint32_t token, enum 
     if (buff_len < packet_len) {
         return -1;
     }
-    make_header(buffer, buff_len, TYPE_ERROR, token);
+    make_header(buffer, TYPE_ERROR, packet_len, token);
     buffer[HEADER_LEN] = error;
     return packet_len;
 }

@@ -3,6 +3,7 @@
  */
 
 #include <stdbool.h>
+#include <sys/stat.h>
 
 #include "AuthenticationService.h"
 #include "NetworkHeader.h"
@@ -97,6 +98,15 @@ int get_input(const char* prompt, int max_option);
  * Handler of each client command
  */
 
+
+/**
+ * Prompt for username and password, and send logon/signup request
+ * to server. Die if error happens.
+ * @return Session token for this user
+ */
+uint32_t handle_logon(int server_socket, char* buffer);
+
+
 void handle_list(int server_socket, char* buffer, uint32_t session_token);
 
 
@@ -127,38 +137,26 @@ int main (int argc, char *argv[]) {
     char buffer[BUFFSIZE];
 
     /*
+     * Initialize database
+     */
+    mkdir(CLIENT_DIR, 0777);
+
+
+    /*
      * Logon/sign-up
      */
-    // Prompt for username and password
-    int choice = get_input("Logon or signup?\n  1. Logon\n  2. Sign up\n", 2);
-    bool is_new_user = (choice == 2);
-    printf("\nEnter username: ");
-    char username[MAX_USERNAME_LEN];
-    scanf("%s", username);
-    char* password = getpass("Enter password: ");
-
-    // Create logon request
-    ssize_t packet_len = make_logon_request(buffer, BUFFSIZE, is_new_user, username, password);
-    send(server_socket, buffer, packet_len, 0);
-
-    // Receive a session token
-    packet_len = receive_packet(server_socket, buffer, BUFFSIZE);
-    if (packet_len <= 0) {
-        die_with_error("Failed to login/signup", NULL);
-    }
-
-    struct PacketHeader* header = (struct PacketHeader*) buffer;
-    uint32_t session_token = header->session_token;
-    printf("\nWelcome, %s!\n", username);
+    uint32_t session_token = handle_logon(server_socket, buffer);
 
     /*
      * Handle user's commands
      */
 
     bool quit = false;
-    fgets(buffer, BUFFSIZE, stdin);
     while(!quit) {
-        choice = get_input("Select command:\n  1. List server files\n  2. Diff\n  3. Sync\n  4. Quit\n", 4);
+        printf("\n========================\n");
+        int choice = get_input(
+                "Select command:\n  1. List server files\n  2. Diff\n  3. Sync\n  4. Quit",
+                 4);
         printf("\n");
         switch(choice) {
             case 1:
@@ -180,7 +178,7 @@ int main (int argc, char *argv[]) {
     }
 
     // Request to leave
-    packet_len = make_leave_request(buffer, BUFFSIZE, session_token);
+    ssize_t packet_len = make_leave_request(buffer, BUFFSIZE, session_token);
     send(server_socket, buffer, packet_len, 0);
 
     // Release resource and exit
@@ -195,7 +193,7 @@ int main (int argc, char *argv[]) {
 
 
 void die_with_error(const char* message, const char* detail) {
-    printf("Error: %s\n", message);
+    printf("ERROR: %s\n", message);
     if (detail != NULL) { 
         printf("       %s\n", detail);
     }
@@ -369,10 +367,10 @@ void get_client_server_diffs(int server_socket, char* buffer, uint32_t session_t
 }
 
 
-void upload_file(int server_socket, char* buffer, uint32_t session_token, const char* filename) {
+void upload_file(int server_socket, char* buffer, uint32_t session_token, const char* file_name) {
+    printf("Uploading file %s\n", file_name);
     // open file descriptor
-    char* file_path = join_path(CLIENT_DIR, filename);
-    printf("Uploading file %s\n", file_path);
+    char* file_path = join_path(CLIENT_DIR, file_name);
     FILE* file = fopen(file_path, "rb");
     free(file_path);
     if (file == NULL) {
@@ -382,15 +380,13 @@ void upload_file(int server_socket, char* buffer, uint32_t session_token, const 
     fseek(file, 0, SEEK_END);
     size_t file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
-    printf("File has size %ld bytes\n", file_size);
     // send header
     size_t packet_len = make_file_transfer_header(buffer, BUFFSIZE, session_token, MAX_FILE_NAME_LEN + file_size);
     send(server_socket, buffer, packet_len, 0);
     // send file name
-    send(server_socket, filename, MAX_FILE_NAME_LEN, 0);
+    send(server_socket, file_name, MAX_FILE_NAME_LEN, 0);
     // send the entire file
     while ((packet_len = make_file_transfer_body(buffer, BUFFSIZE, file)) > 0) {
-        printf("Send %ld bytes\n", packet_len);
         send(server_socket, buffer, packet_len, 0);
     }
     fclose(file);
@@ -398,6 +394,7 @@ void upload_file(int server_socket, char* buffer, uint32_t session_token, const 
 
 
 void download_file(int server_socket, char* buffer, uint32_t session_token, const char* file_name) {
+    printf("Downloading file %s\n", file_name);
     // request the server to send the file
     size_t packet_len = make_file_request(buffer, BUFFSIZE, session_token, file_name);
     send(server_socket, buffer, packet_len, 0);
@@ -410,11 +407,9 @@ void download_file(int server_socket, char* buffer, uint32_t session_token, cons
     // open a new file to write to
     char* file_path = join_path(CLIENT_DIR, file_name);
     FILE* file = fopen(file_path, "wb");
-    printf("Downloading file %s\n", file_path);
 
     // write the file content to file
     fwrite(buffer + HEADER_LEN, 1, n_received - HEADER_LEN, file);
-    printf("Write first %ld bytes\n", n_received - HEADER_LEN);
 
     // continue to receive more file content and write to file
     while(n_received < response_len) {
@@ -428,7 +423,6 @@ void download_file(int server_socket, char* buffer, uint32_t session_token, cons
         }
         n_received += n_new_bytes;
         fwrite(buffer, 1, n_new_bytes, file);
-        printf("Write %d bytes\n", n_new_bytes);
     }
 
     fclose(file);
@@ -440,7 +434,8 @@ int get_input(const char* prompt, int max_option) {
     static char input[BUFFSIZE];
     // repeatedly prompt for input, until read a valid input
     while (true) {
-        printf("%s", prompt);
+        printf("%s\n", prompt);
+        printf(">> ");
         fgets(input, BUFFSIZE, stdin);
         int choice = atoi(input);
         if (choice > 0 && choice <= max_option) {
@@ -450,17 +445,63 @@ int get_input(const char* prompt, int max_option) {
 }
 
 
+uint32_t handle_logon(int server_socket, char* buffer) {
+    // Prompt for username and password
+    int choice = get_input("Logon or signup?\n  1. Logon\n  2. Sign up", 2);
+    bool is_new_user = (choice == 2);
+    printf("\nEnter username: ");
+    char username[MAX_USERNAME_LEN];
+    scanf("%s", username);
+    char* password = getpass("Enter password: ");
+    fgets(buffer, BUFFSIZE, stdin); // consume new line character
+
+    // Create logon request
+    ssize_t packet_len = make_logon_request(buffer, BUFFSIZE, is_new_user, username, password);
+    send(server_socket, buffer, packet_len, 0);
+
+    // Receive a session token
+    packet_len = receive_packet(server_socket, buffer, BUFFSIZE);
+    if (packet_len <= 0) {
+        die_with_error("Failed to login/signup", NULL);
+    }
+
+    struct PacketHeader* header = (struct PacketHeader*) buffer;
+    uint32_t session_token = header->session_token;
+    
+    // Check for error
+    if (header->type == TYPE_ERROR) {
+        enum ErrorType error = buffer[HEADER_LEN] & 0xFF;
+        const char* err_msg = "Failed to login";
+        if (error == ERROR_SERVER_BUSY) {
+            die_with_error(err_msg, "Server busy");
+        } else if (error == ERROR_USERNAME_TAKEN) {
+            die_with_error(err_msg, "Username already existed");
+        } else if (error == ERROR_INVALID_PASSWORD) {
+            die_with_error(err_msg, "Invalid username or password");
+        } else {
+            die_with_error(err_msg, "Unknown error");
+        }
+        // never reached
+    }
+
+    printf("\nWelcome, %s!\n", username);
+    return session_token;
+}
+
+
 void handle_list(int server_socket, char* buffer, uint32_t session_token) {
     int n_files;
     struct FileInfo* server_files = get_server_files(server_socket, buffer, session_token, &n_files);
-    printf("\nFound %d files\n", n_files);
+    printf("Found %d files on server\n", n_files);
+    if (n_files == 0) {
+        return;        
+    }
     printf("%-32s%8s\n", "File name", "Checksum");
     struct FileInfo* cur_file;
     // print all file infos in the linked list
     for (cur_file = server_files; cur_file != NULL; cur_file = cur_file->next) {
         printf("%-32s%8x\n", cur_file->name, cur_file->checksum);
     }
-    printf("\n");
     free_file_info(server_files);
 }
 
@@ -472,16 +513,15 @@ void handle_diff(int server_socket, char* buffer, uint32_t session_token) {
     get_client_server_diffs(server_socket, buffer, session_token, &client_missings, &server_missings);
 
     // print the list of missing files
-    printf("\nFiles not in client:\n");
+    printf("Files not in client:\n");
     struct FileInfo* cur_file;
     for (cur_file = client_missings; cur_file != NULL; cur_file = cur_file->next) {
-        printf("    %s\n", cur_file->name);
+        printf("  %s\n", cur_file->name);
     }
     printf("\nFiles not in server:\n");
     for (cur_file = server_missings; cur_file != NULL; cur_file = cur_file->next) {
-        printf("    %s\n", cur_file->name);
+        printf("  %s\n", cur_file->name);
     }
-    printf("\n");
 
     // release dynamically allocated resources
     free_file_info(server_missings);
@@ -498,18 +538,18 @@ void handle_sync(int server_socket, char* buffer, uint32_t session_token) {
     struct FileInfo* cur_file;
     // upload to server the missing files
     for (cur_file = server_missings; cur_file != NULL; cur_file = cur_file->next) {
-        // send file
+        // send file to server
         upload_file(server_socket, buffer, session_token, cur_file->name);
         // receive confirmation from server
         receive_packet(server_socket, buffer, BUFFSIZE);
     }
 
     for (cur_file = client_missings; cur_file != NULL; cur_file = cur_file->next) {
-        // send file
+        // download from server
         download_file(server_socket, buffer, session_token, cur_file->name);
     }
 
     free_file_info(client_missings);
     free_file_info(server_missings);
+    printf("Sync completed\n");
 }
-
