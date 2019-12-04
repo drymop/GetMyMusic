@@ -3,8 +3,8 @@ CFLAGS = -Wall
 SERVER = server.out
 CLIENT = client.out
 
-SERVER_OBJS = AuthenticationService.o ClientHandler.o FileChecksum.o Protocol.o StorageService.o
-CLIENT_OBJS = FileChecksum.o Protocol.o StorageService.o
+SERVER_OBJS = AuthenticationService.o ClientHandler.o FileChecksum.o Protocol.o StorageService.o md5.o
+CLIENT_OBJS = FileChecksum.o Protocol.o StorageService.o md5.o
 
 # compile object file from corresponding .c and .h file
 %.o: %.c %.h

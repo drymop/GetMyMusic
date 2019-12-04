@@ -12,11 +12,17 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "md5.h"
 
-// MAX_USERNAME_LEN (63) + null terminator + 4-byte hash
-#define MAX_LINE_LEN 68
+
+// MAX_USERNAME_LEN (63+1) + 16-byte hash
+#define MAX_LINE_LEN 80
+// hash will be 16 bytes
+#define HASH_LEN 16
 #define DATABASE_DIR  "serverdata"
 #define DATABASE_FILE "serverdata/password.dat"
+
+
 
 
 void initialize_authentication_service() {
@@ -25,18 +31,22 @@ void initialize_authentication_service() {
 }
 
 
-/**
- * Hash the password into a 32-bit integer
- * TODO Implement a better hash!
- */
-uint32_t bad_hash(const char* password) {
-	size_t len = strlen(password);
+void hash_password(const char* password, unsigned char* result) {
+	MD5_CTX context;
+	MD5_Init(&context);
+	MD5_Update(&context, password, strlen(password));
+	MD5_Final(result, &context);
+}
+
+
+bool compare_hash(unsigned char* hash, unsigned char* correct_hash) {
 	int i;
-	uint32_t hash = 0;
-	for (i = 0; i < len; i++) {
-		hash += password[i];
+	for (i = 0; i < HASH_LEN; i++) {
+		if (hash[i] != correct_hash[i]) {
+			return false;
+		}
 	}
-	return hash;
+	return true;
 }
 
 
@@ -47,7 +57,9 @@ bool check_user(const char* username, const char* password) {
 			|| password_len <= 0 || password_len > MAX_PASSWORD_LEN) {
 		return false; 
 	}
-	uint32_t hash = bad_hash(password);
+
+	unsigned char hash[HASH_LEN];
+	hash_password(password, hash);
 
 	// check for username and password in database
 	char cur_line[MAX_LINE_LEN];
@@ -56,11 +68,13 @@ bool check_user(const char* username, const char* password) {
 	if (db_file == NULL) {
 		return false;
 	}
+
+	unsigned char correct_hash[HASH_LEN];
 	while (fread(cur_line, 1, MAX_LINE_LEN, db_file) == MAX_LINE_LEN) {
 		if (strcmp(cur_line, username) == 0) {
-			uint32_t* correct_hash = (uint32_t*)(cur_line + MAX_USERNAME_LEN + 1);
+			memcpy(correct_hash, cur_line + MAX_USERNAME_LEN + 1, HASH_LEN);
 			fclose(db_file);
-			return (*correct_hash) == hash;
+			return compare_hash(hash, correct_hash);
 		}
 	}
 	fclose(db_file);
@@ -75,7 +89,9 @@ bool create_user(const char* username, const char* password) {
 			|| password_len <= 0 || password_len > MAX_PASSWORD_LEN) {
 		return false; 
 	}
-	uint32_t hash = bad_hash(password);
+	
+	unsigned char hash[HASH_LEN];
+	hash_password(password, hash);
 
 	// make sure username doesn't already exist
 	// if so add the username and hash to database
@@ -94,7 +110,7 @@ bool create_user(const char* username, const char* password) {
 	// start with username (null terminated)
 	memcpy(cur_line, username, username_len + 1);
 	// append hash
-	memcpy(cur_line + MAX_USERNAME_LEN + 1, &hash, 4);
+	memcpy(cur_line + MAX_USERNAME_LEN + 1, &hash, HASH_LEN);
 	fwrite(cur_line, 1, MAX_LINE_LEN, db_file);
 	fclose(db_file);
 	return true;
